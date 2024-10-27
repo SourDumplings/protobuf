@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name     = 'Protobuf-C++'
-  s.version  = '5.30.0'
+  s.version  = '5.28.3'
   s.summary  = 'Protocol Buffers v3 runtime library for C++.'
   s.homepage = 'https://github.com/google/protobuf'
   s.license  = 'BSD-3-Clause'
@@ -32,10 +32,8 @@ Pod::Spec.new do |s|
 
   s.header_mappings_dir = 'src'
 
-  s.ios.deployment_target = '15.0'
-  s.osx.deployment_target = '11.0'
-  # The following are best-effort / community supported, and are not covered by
-  # our official support policies: https://protobuf.dev/support/version-support/
+  s.ios.deployment_target = '12.0'
+  s.osx.deployment_target = '10.13'
   s.tvos.deployment_target = '12.0'
   s.watchos.deployment_target = '6.0'
   s.visionos.deployment_target = '1.0'

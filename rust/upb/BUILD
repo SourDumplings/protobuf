@@ -4,17 +4,17 @@
 # license that can be found in the LICENSE file or at
 # https://developers.google.com/open-source/licenses/bsd
 
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "strip_prefix")
 load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
 
-package(default_applicable_licenses = ["//:license"])
+# begin:google_only
+# package(default_applicable_licenses = ["//upb:license"])
+# end:google_only
 
 rust_library(
     name = "upb",
     srcs = [
         "arena.rs",
         "array.rs",
-        "associated_mini_table.rs",
         "ctype.rs",
         "extension_registry.rs",
         "lib.rs",
@@ -28,7 +28,6 @@ rust_library(
         "text.rs",
         "wire.rs",
     ],
-    rustc_flags = ["--cfg=bzl"],
     visibility = [
         "//rust:__subpackages__",
         "//src/google/protobuf:__subpackages__",
@@ -39,9 +38,6 @@ rust_library(
 rust_test(
     name = "upb_rs_crate_test",
     crate = ":upb",
-    deps = [
-        "@crate_index//:googletest",
-    ],
 )
 
 cc_library(
@@ -55,15 +51,4 @@ cc_library(
         "//upb/mini_table",
         "//upb/text:debug",
     ],
-)
-
-pkg_files(
-    name = "rust_protobuf_upb_src",
-    srcs = glob(
-        [
-            "*",
-        ],
-    ),
-    strip_prefix = strip_prefix.from_root("rust"),
-    visibility = ["//rust:__pkg__"],
 )

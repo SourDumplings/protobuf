@@ -332,7 +332,7 @@ class RepeatedPrimitive final : public FieldGeneratorBase {
   void GenerateDestructorCode(io::Printer* p) const override {
     if (should_split()) {
       p->Emit(R"cc(
-        this_.$field_$.DeleteIfNotDefault();
+        $field_$.DeleteIfNotDefault();
       )cc");
     }
   }
@@ -437,7 +437,7 @@ void RepeatedPrimitive::GeneratePrivateMembers(io::Printer* p) const {
   if (HasCachedSize()) {
     p->Emit({{"_cached_size_", MakeVarintCachedSizeName(field_)}},
             R"cc(
-              $pbi$::CachedSize $_cached_size_$;
+              mutable $pbi$::CachedSize $_cached_size_$;
             )cc");
   }
 }
@@ -590,53 +590,54 @@ void RepeatedPrimitive::GenerateSerializeWithCachedSizesToArray(
 }
 
 void RepeatedPrimitive::GenerateByteSize(io::Printer* p) const {
-  if (HasCachedSize()) {
-    ABSL_CHECK(field_->is_packed());
-    p->Emit(
-        R"cc(
-          total_size +=
-              ::_pbi::WireFormatLite::$DeclaredType$SizeWithPackedTagSize(
-                  this_._internal_$name$(), $kTagBytes$,
-                  this_.$_field_cached_byte_size_$);
-        )cc");
-    return;
-  }
   p->Emit(
       {
-          {"data_size",
+          Sub{"data_size",
+              [&] {
+                auto fixed_size = FixedSize(field_->type());
+                if (fixed_size.has_value()) {
+                  p->Emit({{"kFixed", *fixed_size}}, R"cc(
+                    std::size_t{$kFixed$} *
+                        ::_pbi::FromIntSize(this_._internal_$name$_size())
+                  )cc");
+                } else {
+                  p->Emit(R"cc(
+                    ::_pbi::WireFormatLite::$DeclaredType$Size(
+                        this_._internal_$name$())
+                  )cc");
+                }
+              }}  // Here and below, we need to disable the default ;-chomping
+                  // that closure substitutions do.
+              .WithSuffix(""),
+          {"maybe_cache_data_size",
            [&] {
-             auto fixed_size = FixedSize(field_->type());
-             if (fixed_size.has_value()) {
-               p->Emit({{"kFixed", *fixed_size}}, R"cc(
-                 std::size_t{$kFixed$} *
-                     ::_pbi::FromIntSize(this_._internal_$name$_size());
-               )cc");
-             } else {
-               p->Emit(R"cc(
-                 ::_pbi::WireFormatLite::$DeclaredType$Size(
-                     this_._internal_$name$());
-               )cc");
-             }
+             if (!HasCachedSize()) return;
+             p->Emit(R"cc(
+               this_.$_field_cached_byte_size_$.Set(
+                   ::_pbi::ToCachedSize(data_size));
+             )cc");
            }},
-          {"tag_size",
-           [&] {
-             if (field_->is_packed()) {
-               p->Emit(R"cc(
-                 data_size == 0
-                     ? 0
-                     : $kTagBytes$ + ::_pbi::WireFormatLite::Int32Size(
-                                         static_cast<int32_t>(data_size));
-               )cc");
-             } else {
-               p->Emit(R"cc(
-                 std::size_t{$kTagBytes$} *
-                     ::_pbi::FromIntSize(this_._internal_$name$_size());
-               )cc");
-             }
-           }},
+          Sub{"tag_size",
+              [&] {
+                if (field_->is_packed()) {
+                  p->Emit(R"cc(
+                    data_size == 0
+                        ? 0
+                        : $kTagBytes$ + ::_pbi::WireFormatLite::Int32Size(
+                                            static_cast<int32_t>(data_size))
+                  )cc");
+                } else {
+                  p->Emit(R"cc(
+                    std::size_t{$kTagBytes$} *
+                        ::_pbi::FromIntSize(this_._internal_$name$_size());
+                  )cc");
+                }
+              }}
+              .WithSuffix(""),
       },
       R"cc(
         std::size_t data_size = $data_size$;
+        $maybe_cache_data_size$;
         std::size_t tag_size = $tag_size$;
         total_size += tag_size + data_size;
       )cc");

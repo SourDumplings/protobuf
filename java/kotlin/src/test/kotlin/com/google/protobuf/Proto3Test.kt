@@ -31,7 +31,7 @@ import org.junit.runners.JUnit4
 
 @RunWith(JUnit4::class)
 class Proto3Test {
-  @Suppress("CheckReturnValue")
+  @Suppress("CheckResult")
   @Test
   fun testGettersAndSetters() {
     testAllTypes {
@@ -53,7 +53,7 @@ class Proto3Test {
     }
   }
 
-  @Suppress("CheckReturnValue")
+  @Suppress("CheckResult")
   @Test
   fun testRepeatedGettersAndSetters() {
     testAllTypes {
@@ -253,7 +253,7 @@ class Proto3Test {
     assertThat(class_ {}).isEqualTo(Class.newBuilder().build())
   }
 
-  @Suppress("CheckReturnValue")
+  @Suppress("CheckResult")
   @Test
   fun testHardKeywordGettersAndSetters() {
     hardKeywordsAllTypesProto3 {
@@ -286,7 +286,7 @@ class Proto3Test {
     }
   }
 
-  @Suppress("CheckReturnValue")
+  @Suppress("CheckResult")
   @Test
   fun testHardKeywordHazzers() {
     hardKeywordsAllTypesProto3 {
@@ -304,7 +304,7 @@ class Proto3Test {
     }
   }
 
-  @Suppress("CheckReturnValue")
+  @Suppress("CheckResult")
   @Test
   fun testHardKeywordClears() {
     hardKeywordsAllTypesProto3 {

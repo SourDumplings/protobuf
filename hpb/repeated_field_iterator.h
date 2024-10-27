@@ -14,14 +14,13 @@
 #include <type_traits>
 
 #include "absl/strings/string_view.h"
-#include "google/protobuf/hpb/backend/upb/interop.h"
 #include "google/protobuf/hpb/hpb.h"
 #include "upb/base/string_view.h"
 #include "upb/mem/arena.h"
 #include "upb/message/array.h"
 #include "upb/message/message.h"
 
-namespace hpb {
+namespace protos {
 namespace internal {
 
 // TODO: Implement std iterator for messages
@@ -355,10 +354,10 @@ struct MessageIteratorPolicy {
     void AddOffset(ptrdiff_t offset) { arr += offset; }
     auto Get() const {
       if constexpr (std::is_const_v<T>) {
-        return ::hpb::interop::upb::MakeCHandle<
+        return ::protos::internal::CreateMessage<
             typename std::remove_const_t<T>>(*arr, arena);
       } else {
-        return hpb::interop::upb::MakeHandle<T>(*arr, arena);
+        return ::protos::internal::CreateMessageProxy<T>(*arr, arena);
       }
     }
     auto Index() const { return arr; }
@@ -366,6 +365,6 @@ struct MessageIteratorPolicy {
 };
 
 }  // namespace internal
-}  // namespace hpb
+}  // namespace protos
 
 #endif  // PROTOBUF_HPB_REPEATED_FIELD_ITERATOR_H_

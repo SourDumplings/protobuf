@@ -5,11 +5,10 @@
 // license that can be found in the LICENSE file or at
 // https://developers.google.com/open-source/licenses/bsd
 
-#import "GPBCodedInputStream.h"
-#import "GPBCodedOutputStream.h"
-#import "GPBCodedOutputStream_PackagePrivate.h"
 #import "GPBTestUtilities.h"
-#import "GPBUtilities.h"
+
+#import "GPBCodedInputStream.h"
+#import "GPBCodedOutputStream_PackagePrivate.h"
 #import "GPBUtilities_PackagePrivate.h"
 #import "objectivec/Tests/Unittest.pbobjc.h"
 
@@ -330,7 +329,7 @@
   // This test exists to verify that CFStrings with embedded NULLs still expose
   // their raw buffer if they are backed by UTF8 storage. If this fails, the
   // quick/direct access paths in GPBCodedOutputStream that depend on
-  // CFStringGetCStringPtr need to be re-evaluated (maybe just removed).
+  // CFStringGetCStringPtr need to be re-evalutated (maybe just removed).
   // And yes, we do get NULLs in strings from some servers.
 
   char zeroTest[] = "\0Test\0String";

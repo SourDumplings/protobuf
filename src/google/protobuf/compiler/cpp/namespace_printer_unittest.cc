@@ -46,9 +46,9 @@ TEST_F(NamespacePrinterTest, Basic) {
             "namespace B {\n"
             "namespace E {\n"
             "\n"
-            "}  // namespace E\n"
+            "}  // namespace A\n"
             "}  // namespace B\n"
-            "}  // namespace A\n");
+            "}  // namespace E\n");
 }
 
 TEST_F(NamespacePrinterTest, DifferentDelim) {
@@ -65,9 +65,9 @@ TEST_F(NamespacePrinterTest, DifferentDelim) {
             "namespace B {\n"
             "namespace E {\n"
             "\n"
-            "}  // namespace E\n"
+            "}  // namespace A\n"
             "}  // namespace B\n"
-            "}  // namespace A\n");
+            "}  // namespace E\n");
 }
 
 }  // namespace

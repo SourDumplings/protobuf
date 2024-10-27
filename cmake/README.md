@@ -82,6 +82,13 @@ Go to the project folder:
      C:\Path\to\src> cd protobuf
      C:\Path\to\src\protobuf>
 
+Remember to update any submodules if you are using git clone (you can skip this
+step if you are using a release .tar.gz or .zip package):
+
+```console
+C:\Path\to\src\protobuf> git submodule update --init --recursive
+```
+
 Good. Now you are ready for *CMake* configuration.
 
 ## CMake Configuration
@@ -149,8 +156,8 @@ It will generate *Visual Studio* solution file *protobuf.sln* in current directo
 
 Unit tests are being built along with the rest of protobuf. The unit tests require Google Mock (now a part of Google Test).
 
-By default, a local copy of [Google Test](https://github.com/google/googletest)
-will be downloaded during CMake configuration.
+A copy of [Google Test](https://github.com/google/googletest) is included as a Git submodule in the `third-party/googletest` folder.
+(You do need to initialize the Git submodules as explained above.)
 
 Alternately, you may want to use protobuf in a larger set-up, you may want to use that standard CMake approach where
 you build and install a shared copy of Google Test.

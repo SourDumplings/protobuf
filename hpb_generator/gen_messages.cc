@@ -15,47 +15,47 @@
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "google/protobuf/compiler/hpb/context.h"
+#include "google/protobuf/descriptor.h"
 #include "google/protobuf/compiler/hpb/gen_accessors.h"
 #include "google/protobuf/compiler/hpb/gen_enums.h"
 #include "google/protobuf/compiler/hpb/gen_extensions.h"
 #include "google/protobuf/compiler/hpb/gen_utils.h"
 #include "google/protobuf/compiler/hpb/names.h"
-#include "google/protobuf/descriptor.h"
-#include "upb_generator/c/names.h"
-#include "upb_generator/minitable/names.h"
+#include "google/protobuf/compiler/hpb/output.h"
+#include "upb_generator/common.h"
+#include "upb_generator/file_layout.h"
 
 namespace google::protobuf::hpb_generator {
 
 namespace protobuf = ::proto2;
 
 void WriteModelAccessDeclaration(const protobuf::Descriptor* descriptor,
-                                 Context& ctx);
+                                 Output& output);
 void WriteModelPublicDeclaration(
     const protobuf::Descriptor* descriptor,
     const std::vector<const protobuf::FieldDescriptor*>& file_exts,
     const std::vector<const protobuf::EnumDescriptor*>& file_enums,
-    Context& ctx);
+    Output& output);
 void WriteExtensionIdentifiersInClassHeader(
     const protobuf::Descriptor* message,
     const std::vector<const protobuf::FieldDescriptor*>& file_exts,
-    Context& ctx);
+    Output& output);
 void WriteModelProxyDeclaration(const protobuf::Descriptor* descriptor,
-                                Context& ctx);
+                                Output& output);
 void WriteModelCProxyDeclaration(const protobuf::Descriptor* descriptor,
-                                 Context& ctx);
+                                 Output& output);
 void WriteInternalForwardDeclarationsInHeader(
-    const protobuf::Descriptor* message, Context& ctx);
+    const protobuf::Descriptor* message, Output& output);
 void WriteDefaultInstanceHeader(const protobuf::Descriptor* message,
-                                Context& ctx);
+                                Output& output);
 void WriteExtensionIdentifiersImplementation(
     const protobuf::Descriptor* message,
     const std::vector<const protobuf::FieldDescriptor*>& file_exts,
-    Context& ctx);
+    Output& output);
 void WriteUsingEnumsInHeader(
     const protobuf::Descriptor* message,
     const std::vector<const protobuf::EnumDescriptor*>& file_enums,
-    Context& ctx);
+    Output& output);
 
 // Writes message class declarations into .upb.proto.h.
 //
@@ -65,7 +65,7 @@ void WriteMessageClassDeclarations(
     const protobuf::Descriptor* descriptor,
     const std::vector<const protobuf::FieldDescriptor*>& file_exts,
     const std::vector<const protobuf::EnumDescriptor*>& file_enums,
-    Context& ctx) {
+    Output& output) {
   if (IsMapEntryMessage(descriptor)) {
     // Skip map entry generation. Low level accessors for maps are
     // generated that don't require a separate map type.
@@ -73,23 +73,23 @@ void WriteMessageClassDeclarations(
   }
 
   // Forward declaration of Proto Class for GCC handling of free friend method.
-  ctx.EmitLegacy("class $0;\n", ClassName(descriptor));
-  ctx.Emit("namespace internal {\n\n");
-  WriteModelAccessDeclaration(descriptor, ctx);
-  ctx.Emit("\n");
-  WriteInternalForwardDeclarationsInHeader(descriptor, ctx);
-  ctx.Emit("\n");
-  ctx.Emit("}  // namespace internal\n\n");
-  WriteModelPublicDeclaration(descriptor, file_exts, file_enums, ctx);
-  ctx.Emit("namespace internal {\n");
-  WriteModelCProxyDeclaration(descriptor, ctx);
-  WriteModelProxyDeclaration(descriptor, ctx);
-  ctx.Emit("}  // namespace internal\n\n");
+  output("class $0;\n", ClassName(descriptor));
+  output("namespace internal {\n\n");
+  WriteModelAccessDeclaration(descriptor, output);
+  output("\n");
+  WriteInternalForwardDeclarationsInHeader(descriptor, output);
+  output("\n");
+  output("}  // namespace internal\n\n");
+  WriteModelPublicDeclaration(descriptor, file_exts, file_enums, output);
+  output("namespace internal {\n");
+  WriteModelCProxyDeclaration(descriptor, output);
+  WriteModelProxyDeclaration(descriptor, output);
+  output("}  // namespace internal\n\n");
 }
 
 void WriteModelAccessDeclaration(const protobuf::Descriptor* descriptor,
-                                 Context& ctx) {
-  ctx.EmitLegacy(
+                                 Output& output) {
+  output(
       R"cc(
         class $0Access {
          public:
@@ -101,25 +101,26 @@ void WriteModelAccessDeclaration(const protobuf::Descriptor* descriptor,
               : msg_(const_cast<$1*>(msg)), arena_(arena) {
             assert(arena != nullptr);
           }  // NOLINT
+          void* GetInternalArena() const { return arena_; }
       )cc",
-      ClassName(descriptor),
-      upb::generator::CApiMessageType(descriptor->full_name()));
-  WriteFieldAccessorsInHeader(descriptor, ctx);
-  WriteOneofAccessorsInHeader(descriptor, ctx);
-  ctx.EmitLegacy(
+      ClassName(descriptor), MessageName(descriptor));
+  WriteFieldAccessorsInHeader(descriptor, output);
+  WriteOneofAccessorsInHeader(descriptor, output);
+  output.Indent();
+  output(
       R"cc(
         private:
         friend class $2;
         friend class $0Proxy;
         friend class $0CProxy;
-        friend struct ::hpb::internal::PrivateAccess;
+        friend struct ::protos::internal::PrivateAccess;
         $1* msg_;
         upb_Arena* arena_;
       )cc",
-      ClassName(descriptor),
-      upb::generator::CApiMessageType(descriptor->full_name()),
+      ClassName(descriptor), MessageName(descriptor),
       QualifiedClassName(descriptor));
-  ctx.Emit("};\n");
+  output.Outdent();
+  output("};\n");
 }
 
 std::string UnderscoresToCamelCase(absl::string_view input,
@@ -162,21 +163,21 @@ std::string FieldConstantName(const protobuf::FieldDescriptor* field) {
   return result;
 }
 
-void WriteConstFieldNumbers(Context& ctx,
+void WriteConstFieldNumbers(Output& output,
                             const protobuf::Descriptor* descriptor) {
   for (auto field : FieldRange(descriptor)) {
-    ctx.EmitLegacy("static constexpr ::uint32_t $0 = $1;\n",
-                   FieldConstantName(field), field->number());
+    output("static constexpr ::uint32_t $0 = $1;\n", FieldConstantName(field),
+           field->number());
   }
-  ctx.Emit("\n\n");
+  output("\n\n");
 }
 
 void WriteModelPublicDeclaration(
     const protobuf::Descriptor* descriptor,
     const std::vector<const protobuf::FieldDescriptor*>& file_exts,
     const std::vector<const protobuf::EnumDescriptor*>& file_enums,
-    Context& ctx) {
-  ctx.EmitLegacy(
+    Output& output) {
+  output(
       R"cc(
         class $0 final : private internal::$0Access {
          public:
@@ -205,67 +206,67 @@ void WriteModelPublicDeclaration(
           }
       )cc",
       ClassName(descriptor),
-      ::upb::generator::MiniTableMessageVarName(descriptor->full_name()),
-      upb::generator::CApiMessageType(descriptor->full_name()),
-      QualifiedClassName(descriptor));
+      ::upb::generator::MessageInit(descriptor->full_name()),
+      MessageName(descriptor), QualifiedClassName(descriptor));
 
-  WriteUsingAccessorsInHeader(descriptor, MessageClassType::kMessage, ctx);
-  WriteUsingEnumsInHeader(descriptor, file_enums, ctx);
-  WriteDefaultInstanceHeader(descriptor, ctx);
-  WriteExtensionIdentifiersInClassHeader(descriptor, file_exts, ctx);
+  WriteUsingAccessorsInHeader(descriptor, MessageClassType::kMessage, output);
+  WriteUsingEnumsInHeader(descriptor, file_enums, output);
+  WriteDefaultInstanceHeader(descriptor, output);
+  WriteExtensionIdentifiersInClassHeader(descriptor, file_exts, output);
   if (descriptor->extension_range_count()) {
     // for typetrait checking
-    ctx.EmitLegacy("using ExtendableType = $0;\n", ClassName(descriptor));
+    output("using ExtendableType = $0;\n", ClassName(descriptor));
   }
-  // Note: free function friends that are templates such as ::hpb::Parse
+  // Note: free function friends that are templates such as ::protos::Parse
   // require explicit <$2> type parameter in declaration to be able to compile
   // with gcc otherwise the compiler will fail with
   // "has not been declared within namespace" error. Even though there is a
   // namespace qualifier, cross namespace matching fails.
-  ctx.EmitLegacy(
+  output.Indent();
+  output(
       R"cc(
         static const upb_MiniTable* minitable();
+        using $0Access::GetInternalArena;
       )cc",
       ClassName(descriptor));
-  ctx.Emit("\n");
-  WriteConstFieldNumbers(ctx, descriptor);
-  ctx.EmitLegacy(
+  output("\n");
+  WriteConstFieldNumbers(output, descriptor);
+  output(
       R"cc(
         private:
         const upb_Message* msg() const { return UPB_UPCAST(msg_); }
         upb_Message* msg() { return UPB_UPCAST(msg_); }
-
-        upb_Arena* arena() const { return arena_; }
 
         $0(upb_Message* msg, upb_Arena* arena) : $0Access() {
           msg_ = ($1*)msg;
           arena_ = owned_arena_.ptr();
           upb_Arena_Fuse(arena_, arena);
         }
-        ::hpb::Arena owned_arena_;
-        friend struct ::hpb::internal::PrivateAccess;
+        ::protos::Arena owned_arena_;
+        friend struct ::protos::internal::PrivateAccess;
         friend Proxy;
         friend CProxy;
-        friend absl::StatusOr<$2>(::hpb::Parse<$2>(absl::string_view bytes,
-                                                   int options));
-        friend absl::StatusOr<$2>(::hpb::Parse<$2>(
+        friend absl::StatusOr<$2>(::protos::Parse<$2>(absl::string_view bytes,
+                                                      int options));
+        friend absl::StatusOr<$2>(::protos::Parse<$2>(
             absl::string_view bytes,
-            const ::hpb::ExtensionRegistry& extension_registry, int options));
-        friend upb_Arena* hpb::interop::upb::GetArena<$0>($0* message);
-        friend upb_Arena* hpb::interop::upb::GetArena<$0>(::hpb::Ptr<$0> message);
-        friend $0(hpb::interop::upb::MoveMessage<$0>(upb_Message* msg,
-                                                     upb_Arena* arena));
+            const ::protos::ExtensionRegistry& extension_registry,
+            int options));
+        friend upb_Arena* ::protos::internal::GetArena<$0>($0* message);
+        friend upb_Arena* ::protos::internal::GetArena<$0>(::protos::Ptr<$0> message);
+        friend $0(::protos::internal::MoveMessage<$0>(upb_Message* msg,
+                                                      upb_Arena* arena));
       )cc",
-      ClassName(descriptor),
-      upb::generator::CApiMessageType(descriptor->full_name()),
+      ClassName(descriptor), MessageName(descriptor),
       QualifiedClassName(descriptor));
-  ctx.Emit("};\n\n");
+  output.Outdent();
+  output("};\n\n");
 }
 
 void WriteModelProxyDeclaration(const protobuf::Descriptor* descriptor,
-                                Context& ctx) {
+                                Output& output) {
   // Foo::Proxy.
-  ctx.EmitLegacy(
+  output(
       R"cc(
         class $0Proxy final : private internal::$0Access {
          public:
@@ -283,107 +284,109 @@ void WriteModelProxyDeclaration(const protobuf::Descriptor* descriptor,
             arena_ = m.arena_;
             return *this;
           }
+          using $0Access::GetInternalArena;
       )cc",
       ClassName(descriptor));
 
-  WriteUsingAccessorsInHeader(descriptor, MessageClassType::kMessageProxy, ctx);
-  ctx.Emit("\n");
-  ctx.EmitLegacy(
+  WriteUsingAccessorsInHeader(descriptor, MessageClassType::kMessageProxy,
+                              output);
+  output("\n");
+  output.Indent(1);
+  output(
       R"cc(
         private:
         upb_Message* msg() const { return UPB_UPCAST(msg_); }
 
-        upb_Arena* arena() const { return arena_; }
-
         $0Proxy(upb_Message* msg, upb_Arena* arena)
             : internal::$0Access(($1*)msg, arena) {}
-        friend $0::Proxy(::hpb::CreateMessage<$0>(::hpb::Arena& arena));
-        friend $0::Proxy(hpb::interop::upb::MakeHandle<$0>(upb_Message*, upb_Arena*));
-        friend struct ::hpb::internal::PrivateAccess;
+        friend $0::Proxy(::protos::CreateMessage<$0>(::protos::Arena& arena));
+        friend $0::Proxy(::protos::internal::CreateMessageProxy<$0>(
+            upb_Message*, upb_Arena*));
+        friend struct ::protos::internal::PrivateAccess;
         friend class RepeatedFieldProxy;
         friend class $0CProxy;
         friend class $0Access;
-        friend class ::hpb::Ptr<$0>;
-        friend class ::hpb::Ptr<const $0>;
+        friend class ::protos::Ptr<$0>;
+        friend class ::protos::Ptr<const $0>;
         static const upb_MiniTable* minitable() { return $0::minitable(); }
-        friend const upb_MiniTable* ::hpb::interop::upb::GetMiniTable<$0Proxy>(
+        friend const upb_MiniTable* ::protos::internal::GetMiniTable<$0Proxy>(
             const $0Proxy* message);
-        friend const upb_MiniTable* ::hpb::interop::upb::GetMiniTable<$0Proxy>(
-            ::hpb::Ptr<$0Proxy> message);
-        friend upb_Arena* hpb::interop::upb::GetArena<$2>($2* message);
-        friend upb_Arena* hpb::interop::upb::GetArena<$2>(::hpb::Ptr<$2> message);
+        friend const upb_MiniTable* ::protos::internal::GetMiniTable<$0Proxy>(
+            ::protos::Ptr<$0Proxy> message);
+        friend upb_Arena* ::protos::internal::GetArena<$2>($2* message);
+        friend upb_Arena* ::protos::internal::GetArena<$2>(::protos::Ptr<$2> message);
         static void Rebind($0Proxy& lhs, const $0Proxy& rhs) {
           lhs.msg_ = rhs.msg_;
           lhs.arena_ = rhs.arena_;
         }
       )cc",
-      ClassName(descriptor),
-      upb::generator::CApiMessageType(descriptor->full_name()),
+      ClassName(descriptor), MessageName(descriptor),
       QualifiedClassName(descriptor));
-  ctx.Emit("};\n\n");
+  output.Outdent(1);
+  output("};\n\n");
 }
 
 void WriteModelCProxyDeclaration(const protobuf::Descriptor* descriptor,
-                                 Context& ctx) {
+                                 Output& output) {
   // Foo::CProxy.
-  ctx.EmitLegacy(
+  output(
       R"cc(
         class $0CProxy final : private internal::$0Access {
          public:
           $0CProxy() = delete;
           $0CProxy(const $0* m)
-              : internal::$0Access(m->msg_, hpb::interop::upb::GetArena(m)) {}
+              : internal::$0Access(m->msg_, ::protos::internal::GetArena(m)) {}
           $0CProxy($0Proxy m);
+          using $0Access::GetInternalArena;
       )cc",
-      ClassName(descriptor),
-      upb::generator::CApiMessageType(descriptor->full_name()));
+      ClassName(descriptor), MessageName(descriptor));
 
   WriteUsingAccessorsInHeader(descriptor, MessageClassType::kMessageCProxy,
-                              ctx);
+                              output);
 
-  ctx.EmitLegacy(
+  output.Indent(1);
+  output(
       R"cc(
         private:
         using AsNonConst = $0Proxy;
         const upb_Message* msg() const { return UPB_UPCAST(msg_); }
-        upb_Arena* arena() const { return arena_; }
 
         $0CProxy(const upb_Message* msg, upb_Arena* arena)
             : internal::$0Access(($1*)msg, arena){};
-        friend struct ::hpb::internal::PrivateAccess;
+        friend struct ::protos::internal::PrivateAccess;
         friend class RepeatedFieldProxy;
-        friend class ::hpb::Ptr<$0>;
-        friend class ::hpb::Ptr<const $0>;
+        friend class ::protos::Ptr<$0>;
+        friend class ::protos::Ptr<const $0>;
         static const upb_MiniTable* minitable() { return $0::minitable(); }
-        friend const upb_MiniTable* ::hpb::interop::upb::GetMiniTable<$0CProxy>(
+        friend const upb_MiniTable* ::protos::internal::GetMiniTable<$0CProxy>(
             const $0CProxy* message);
-        friend const upb_MiniTable* ::hpb::interop::upb::GetMiniTable<$0CProxy>(
-            ::hpb::Ptr<$0CProxy> message);
+        friend const upb_MiniTable* ::protos::internal::GetMiniTable<$0CProxy>(
+            ::protos::Ptr<$0CProxy> message);
 
         static void Rebind($0CProxy& lhs, const $0CProxy& rhs) {
           lhs.msg_ = rhs.msg_;
           lhs.arena_ = rhs.arena_;
         }
       )cc",
-      ClassName(descriptor),
-      upb::generator::CApiMessageType(descriptor->full_name()));
-  ctx.Emit("};\n\n");
+      ClassName(descriptor), MessageName(descriptor));
+  output.Outdent(1);
+  output("};\n\n");
 }
 
 void WriteDefaultInstanceHeader(const protobuf::Descriptor* message,
-                                Context& ctx) {
-  ctx.EmitLegacy("  static ::hpb::Ptr<const $0> default_instance();\n",
-                 ClassName(message));
+                                Output& output) {
+  output("  static ::protos::Ptr<const $0> default_instance();\n",
+         ClassName(message));
 }
 
 void WriteMessageImplementation(
     const protobuf::Descriptor* descriptor,
     const std::vector<const protobuf::FieldDescriptor*>& file_exts,
-    Context& ctx) {
+    Output& output) {
   bool message_is_map_entry = descriptor->options().map_entry();
   if (!message_is_map_entry) {
     // Constructor.
-    ctx.EmitLegacy(
+    output(
         R"cc(
           $0::$0() : $0Access() {
             arena_ = owned_arena_.ptr();
@@ -391,49 +394,48 @@ void WriteMessageImplementation(
           }
           $0::$0(const $0& from) : $0Access() {
             arena_ = owned_arena_.ptr();
-            msg_ = ($1*)::hpb::internal::DeepClone(UPB_UPCAST(from.msg_), &$2, arena_);
+            msg_ = ($1*)::protos::internal::DeepClone(UPB_UPCAST(from.msg_), &$2, arena_);
           }
           $0::$0(const CProxy& from) : $0Access() {
             arena_ = owned_arena_.ptr();
-            msg_ = ($1*)::hpb::internal::DeepClone(
-                ::hpb::interop::upb::GetMessage(&from), &$2, arena_);
+            msg_ = ($1*)::protos::internal::DeepClone(
+                ::protos::internal::GetInternalMsg(&from), &$2, arena_);
           }
           $0::$0(const Proxy& from) : $0(static_cast<const CProxy&>(from)) {}
           internal::$0CProxy::$0CProxy($0Proxy m) : $0Access() {
             arena_ = m.arena_;
-            msg_ = ($1*)::hpb::interop::upb::GetMessage(&m);
+            msg_ = ($1*)::protos::internal::GetInternalMsg(&m);
           }
           $0& $0::operator=(const $3& from) {
             arena_ = owned_arena_.ptr();
-            msg_ = ($1*)::hpb::internal::DeepClone(UPB_UPCAST(from.msg_), &$2, arena_);
+            msg_ = ($1*)::protos::internal::DeepClone(UPB_UPCAST(from.msg_), &$2, arena_);
             return *this;
           }
           $0& $0::operator=(const CProxy& from) {
             arena_ = owned_arena_.ptr();
-            msg_ = ($1*)::hpb::internal::DeepClone(
-                ::hpb::interop::upb::GetMessage(&from), &$2, arena_);
+            msg_ = ($1*)::protos::internal::DeepClone(
+                ::protos::internal::GetInternalMsg(&from), &$2, arena_);
             return *this;
           }
         )cc",
-        ClassName(descriptor),
-        upb::generator::CApiMessageType(descriptor->full_name()),
-        ::upb::generator::MiniTableMessageVarName(descriptor->full_name()),
+        ClassName(descriptor), MessageName(descriptor),
+        ::upb::generator::MessageInit(descriptor->full_name()),
         QualifiedClassName(descriptor));
-    ctx.Emit("\n");
+    output("\n");
     // Minitable
-    ctx.EmitLegacy(
+    output(
         R"cc(
           const upb_MiniTable* $0::minitable() { return &$1; }
         )cc",
         ClassName(descriptor),
-        ::upb::generator::MiniTableMessageVarName(descriptor->full_name()));
-    ctx.Emit("\n");
+        ::upb::generator::MessageInit(descriptor->full_name()));
+    output("\n");
   }
 
-  WriteAccessorsInSource(descriptor, ctx);
+  WriteAccessorsInSource(descriptor, output);
 
   if (!message_is_map_entry) {
-    ctx.EmitLegacy(
+    output(
         R"cc(
           struct $0DefaultTypeInternal {
             $1* msg;
@@ -445,28 +447,27 @@ void WriteMessageImplementation(
           }
           $0DefaultTypeInternal _$0_default_instance_ = _$0DefaultTypeBuilder();
         )cc",
-        ClassName(descriptor),
-        upb::generator::CApiMessageType(descriptor->full_name()));
+        ClassName(descriptor), MessageName(descriptor));
 
-    ctx.EmitLegacy(
+    output(
         R"cc(
-          ::hpb::Ptr<const $0> $0::default_instance() {
-            return ::hpb::interop::upb::MakeCHandle<$0>(
+          ::protos::Ptr<const $0> $0::default_instance() {
+            return ::protos::internal::CreateMessage<$0>(
                 (upb_Message *)_$0_default_instance_.msg,
                 _$0_default_instance_.arena);
           }
         )cc",
         ClassName(descriptor));
 
-    WriteExtensionIdentifiersImplementation(descriptor, file_exts, ctx);
+    WriteExtensionIdentifiersImplementation(descriptor, file_exts, output);
   }
 }
 
 void WriteInternalForwardDeclarationsInHeader(
-    const protobuf::Descriptor* message, Context& ctx) {
+    const protobuf::Descriptor* message, Output& output) {
   // Write declaration for internal re-usable default_instance without
   // leaking implementation.
-  ctx.EmitLegacy(
+  output(
       R"cc(
         struct $0DefaultTypeInternal;
         extern $0DefaultTypeInternal _$0_default_instance_;
@@ -477,11 +478,11 @@ void WriteInternalForwardDeclarationsInHeader(
 void WriteExtensionIdentifiersInClassHeader(
     const protobuf::Descriptor* message,
     const std::vector<const protobuf::FieldDescriptor*>& file_exts,
-    Context& ctx) {
+    Output& output) {
   for (auto* ext : file_exts) {
     if (ext->extension_scope() &&
         ext->extension_scope()->full_name() == message->full_name()) {
-      WriteExtensionIdentifierHeader(ext, ctx);
+      WriteExtensionIdentifierHeader(ext, output);
     }
   }
 }
@@ -489,11 +490,11 @@ void WriteExtensionIdentifiersInClassHeader(
 void WriteExtensionIdentifiersImplementation(
     const protobuf::Descriptor* message,
     const std::vector<const protobuf::FieldDescriptor*>& file_exts,
-    Context& ctx) {
+    Output& output) {
   for (auto* ext : file_exts) {
     if (ext->extension_scope() &&
         ext->extension_scope()->full_name() == message->full_name()) {
-      WriteExtensionIdentifier(ext, ctx);
+      WriteExtensionIdentifier(ext, output);
     }
   }
 }
@@ -501,7 +502,7 @@ void WriteExtensionIdentifiersImplementation(
 void WriteUsingEnumsInHeader(
     const protobuf::Descriptor* message,
     const std::vector<const protobuf::EnumDescriptor*>& file_enums,
-    Context& ctx) {
+    Output& output) {
   for (auto* enum_descriptor : file_enums) {
     std::string enum_type_name = EnumTypeName(enum_descriptor);
     std::string enum_resolved_type_name =
@@ -515,25 +516,23 @@ void WriteUsingEnumsInHeader(
             message->full_name()) {
       continue;
     }
-    ctx.EmitLegacy("using $0", enum_descriptor->name());
+    output("using $0", enum_descriptor->name());
     if (enum_descriptor->options().deprecated()) {
-      ctx.EmitLegacy(" ABSL_DEPRECATED(\"Proto enum $0\")",
-                     enum_descriptor->name());
+      output(" ABSL_DEPRECATED(\"Proto enum $0\")", enum_descriptor->name());
     }
-    ctx.EmitLegacy(" = $0;", enum_resolved_type_name);
-    ctx.Emit("\n");
+    output(" = $0;", enum_resolved_type_name);
+    output("\n");
     int value_count = enum_descriptor->value_count();
     for (int i = 0; i < value_count; i++) {
-      ctx.EmitLegacy("static constexpr $0 $1", enum_descriptor->name(),
-                     enum_descriptor->value(i)->name());
+      output("static constexpr $0 $1", enum_descriptor->name(),
+             enum_descriptor->value(i)->name());
       if (enum_descriptor->options().deprecated() ||
           enum_descriptor->value(i)->options().deprecated()) {
-        ctx.EmitLegacy(" ABSL_DEPRECATED(\"Proto enum value $0\") ",
-                       enum_descriptor->value(i)->name());
+        output(" ABSL_DEPRECATED(\"Proto enum value $0\") ",
+               enum_descriptor->value(i)->name());
       }
-      ctx.EmitLegacy(" = $0;\n",
-                     EnumValueSymbolInNameSpace(enum_descriptor,
-                                                enum_descriptor->value(i)));
+      output(" = $0;\n", EnumValueSymbolInNameSpace(enum_descriptor,
+                                                    enum_descriptor->value(i)));
     }
   }
 }

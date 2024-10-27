@@ -8,8 +8,8 @@
 #ifndef PROTOBUF_COMPILER_HBP_GEN_EXTENSIONS_H_
 #define PROTOBUF_COMPILER_HBP_GEN_EXTENSIONS_H_
 
-#include "google/protobuf/compiler/hpb/context.h"
 #include "google/protobuf/descriptor.h"
+#include "google/protobuf/compiler/hpb/output.h"
 
 namespace google::protobuf::hpb_generator {
 
@@ -17,14 +17,14 @@ namespace protobuf = ::proto2;
 
 void WriteExtensionIdentifiersHeader(
     const std::vector<const protobuf::FieldDescriptor*>& extensions,
-    Context& ctx);
+    Output& output);
 void WriteExtensionIdentifierHeader(const protobuf::FieldDescriptor* ext,
-                                    Context& ctx);
+                                    Output& output);
 void WriteExtensionIdentifiers(
     const std::vector<const protobuf::FieldDescriptor*>& extensions,
-    Context& ctx);
+    Output& output);
 void WriteExtensionIdentifier(const protobuf::FieldDescriptor* ext,
-                              Context& ctx);
+                              Output& output);
 
 }  // namespace protobuf
 }  // namespace google::hpb_generator

@@ -18,8 +18,7 @@
 #include <errno.h>
 
 #include <algorithm>
-#include <istream>
-#include <ostream>
+#include <iostream>
 
 #include "google/protobuf/stubs/common.h"
 #include "absl/log/absl_check.h"

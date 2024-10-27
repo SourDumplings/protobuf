@@ -34,6 +34,8 @@ extern "C" struct SerializedData {
   // Owns the memory, must be freed by Rust.
   const uint8_t* data;
   size_t len;
+
+  SerializedData(const uint8_t* data, size_t len) : data(data), len(len) {}
 };
 
 inline bool SerializeMsg(const google::protobuf::MessageLite* msg, SerializedData* out) {
@@ -51,8 +53,7 @@ inline bool SerializeMsg(const google::protobuf::MessageLite* msg, SerializedDat
   if (!msg->SerializeWithCachedSizesToArray(bytes)) {
     return false;
   }
-  out->data = bytes;
-  out->len = len;
+  *out = SerializedData(bytes, len);
   return true;
 }
 

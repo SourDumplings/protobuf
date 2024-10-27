@@ -116,8 +116,7 @@ static_assert(PROTOBUF_GNUC_MIN(7, 3), "Protobuf only supports GCC 7.3 and newer
 #elif defined(_MSVC_LANG)
 static_assert(PROTOBUF_MSC_VER_MIN(1910), "Protobuf only supports MSVC 2017 and newer.");
 #endif
-static_assert(PROTOBUF_CPLUSPLUS_MIN(201703L),
-              "Protobuf only supports C++17 and newer.");
+static_assert(PROTOBUF_CPLUSPLUS_MIN(201402L), "Protobuf only supports C++14 and newer.");
 
 // Check minimum Abseil version.
 #if defined(ABSL_LTS_RELEASE_VERSION) && defined(ABSL_LTS_RELEASE_PATCH_LEVEL)
@@ -144,18 +143,17 @@ static_assert(PROTOBUF_ABSL_MIN(20230125, 3),
 // Owner: shaod@, gberg@
 #define PROTOBUF_FUTURE_DESCRIPTOR_EXTENSION_DECL 1
 
-// Renames DescriptorPool::AddUnusedImportTrackFile
-// Owner: mkruskal@
-#define PROTOBUF_FUTURE_RENAME_ADD_UNUSED_IMPORT 1
-
 #endif
 
-#ifdef PROTOBUF_FUTURE_STRING_VIEW_RETURN_TYPE
-#error PROTOBUF_FUTURE_STRING_VIEW_RETURN_TYPE was previously defined
+#ifdef PROTOBUF_MINIMUM_EDITION
+#error PROTOBUF_MINIMUM_EDITION was previously defined
 #endif
-#if defined(PROTOBUF_TEMPORARY_ENABLE_STRING_VIEW_RETURN_TYPE)
-#define PROTOBUF_FUTURE_STRING_VIEW_RETURN_TYPE 1
+#define PROTOBUF_MINIMUM_EDITION EDITION_PROTO2
+
+#ifdef PROTOBUF_MAXIMUM_EDITION
+#error PROTOBUF_MAXIMUM_EDITION was previously defined
 #endif
+#define PROTOBUF_MAXIMUM_EDITION EDITION_2023
 
 #ifdef PROTOBUF_ALWAYS_INLINE
 #error PROTOBUF_ALWAYS_INLINE was previously defined
@@ -368,7 +366,7 @@ static_assert(PROTOBUF_ABSL_MIN(20230125, 3),
 #ifdef PROTOBUF_NODISCARD
 #error PROTOBUF_NODISCARD was previously defined
 #endif
-#if ABSL_HAVE_CPP_ATTRIBUTE(nodiscard)
+#if ABSL_HAVE_CPP_ATTRIBUTE(nodiscard) && PROTOBUF_CPLUSPLUS_MIN(201703L)
 #define PROTOBUF_NODISCARD [[nodiscard]]
 #elif ABSL_HAVE_ATTRIBUTE(warn_unused_result) || defined(__GNUC__)
 #define PROTOBUF_NODISCARD __attribute__((warn_unused_result))
@@ -383,6 +381,32 @@ static_assert(PROTOBUF_ABSL_MIN(20230125, 3),
 #define PROTOBUF_RESTRICT __restrict
 #else
 #define PROTOBUF_RESTRICT
+#endif
+
+#ifdef PROTOBUF_FORCE_COPY_IN_RELEASE
+#error PROTOBUF_FORCE_COPY_IN_RELEASE was previously defined
+#endif
+
+#ifdef PROTOBUF_FORCE_COPY_IN_SWAP
+#error PROTOBUF_FORCE_COPY_IN_SWAP was previously defined
+#endif
+
+#ifdef PROTOBUF_FORCE_COPY_IN_MOVE
+#error PROTOBUF_FORCE_COPY_IN_MOVE was previously defined
+#endif
+
+#ifdef PROTOBUF_FUZZ_MESSAGE_SPACE_USED_LONG
+#error PROTOBUF_FUZZ_MESSAGE_SPACE_USED_LONG was previously defined
+#endif
+
+// Force copy the default string to a string field so that non-optimized builds
+// have harder-to-rely-on address stability.
+#ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+#error PROTOBUF_FORCE_COPY_DEFAULT_STRING was previously defined
+#endif
+
+#ifdef PROTOBUF_FORCE_ALLOCATION_ON_CONSTRUCTION
+#error PROTOBUF_FORCE_ALLOCATION_ON_CONSTRUCTION was previously defined
 #endif
 
 // Specify memory alignment for structs, classes, etc.
@@ -612,7 +636,8 @@ static_assert(PROTOBUF_ABSL_MIN(20230125, 3),
 #ifdef PROTOBUF_UNUSED
 #error PROTOBUF_UNUSED was previously defined
 #endif
-#if ABSL_HAVE_CPP_ATTRIBUTE(maybe_unused) || (PROTOBUF_MSC_VER_MIN(1911))
+#if ABSL_HAVE_CPP_ATTRIBUTE(maybe_unused) || \
+    (PROTOBUF_MSC_VER_MIN(1911) && PROTOBUF_CPLUSPLUS_MIN(201703L))
 #define PROTOBUF_UNUSED [[maybe_unused]]
 #elif ABSL_HAVE_ATTRIBUTE(unused) || defined(__GNUC__)
 #define PROTOBUF_UNUSED __attribute__((__unused__))
@@ -620,7 +645,7 @@ static_assert(PROTOBUF_ABSL_MIN(20230125, 3),
 #define PROTOBUF_UNUSED
 #endif
 
-// For the toolchains that support it, evaluates to `true` if the input is
+// For the toolchains that support it, evalutes to `true` if the input is
 // determined to be a compile time constant after optimizations have happened
 // (like inlining and constant propagation). A `false` result means that the
 // compiler could not determine it is constant (it might still be but couldn't
@@ -669,7 +694,6 @@ static_assert(PROTOBUF_ABSL_MIN(20230125, 3),
 #endif
 
 // ThreadSafeArenaz is turned off completely in opensource builds.
-
 
 // noreturn is defined as a macro in C's stdnoreturn.h
 #ifdef noreturn
@@ -857,12 +881,6 @@ static_assert(PROTOBUF_ABSL_MIN(20230125, 3),
 // captured `this`.
 // https://bugzilla.mozilla.org/show_bug.cgi?id=1373625
 #pragma GCC diagnostic ignored "-Wunused-lambda-capture"
-// GCC complains when attributes are specified on anything other than the first
-// declaration for enums, even if they all specify the same set.
-// Eg this would trigger the warning:
-//   enum [[deprecated]] foo : int;
-//   enum [[deprecated]] foo : int;
-#pragma GCC diagnostic ignored "-Wattributes"
 // -Wsign-conversion causes a lot of warnings on mostly code like:
 //   int index = ...
 //   int value = vec[index];
@@ -907,8 +925,7 @@ static_assert(PROTOBUF_ABSL_MIN(20230125, 3),
 #pragma warning(disable: 4125)
 #endif
 
-#if defined(PROTOBUF_ENABLE_DEBUG_LOGGING_MAY_LEAK_PII) && \
-    PROTOBUF_ENABLE_DEBUG_LOGGING_MAY_LEAK_PII
+#if PROTOBUF_ENABLE_DEBUG_LOGGING_MAY_LEAK_PII
 #define PROTOBUF_DEBUG true
 #else
 #define PROTOBUF_DEBUG false

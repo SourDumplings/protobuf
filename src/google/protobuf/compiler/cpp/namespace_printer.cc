@@ -26,9 +26,8 @@ NamespacePrinter::NamespacePrinter(
 
 NamespacePrinter::~NamespacePrinter() {
   // Close the namespace.
-  for (auto it = namespace_components_.rbegin();
-       it != namespace_components_.rend(); ++it) {
-    p_->Print(absl::Substitute("}  // namespace $0\n", *it));
+  for (const std::string& ns : namespace_components_) {
+    p_->Print(absl::Substitute("}  // namespace $0\n", ns));
   }
 }
 

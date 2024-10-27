@@ -205,7 +205,7 @@ void TestCtorAndDtorTraits(std::vector<absl::string_view> def,
       ABSL_LOG(FATAL);
       return nullptr;
     }
-    const internal::ClassData* GetClassData() const PROTOBUF_FINAL {
+    const ClassData* GetClassData() const PROTOBUF_FINAL {
       ABSL_LOG(FATAL);
       return nullptr;
     }
@@ -528,9 +528,8 @@ class DispatcherTestProto : public Message {
       : Message(nullptr, nullptr) {
     ABSL_LOG(FATAL);
   }
-  const internal::ClassData* GetClassData() const PROTOBUF_FINAL {
-    ABSL_LOG(FATAL);
-  }
+  DispatcherTestProto* New(Arena*) const PROTOBUF_FINAL { ABSL_LOG(FATAL); }
+  const ClassData* GetClassData() const PROTOBUF_FINAL { ABSL_LOG(FATAL); }
 };
 // We use a specialization to inject behavior for the test.
 // This test is very intrusive and will have to be fixed if we change the
@@ -653,7 +652,7 @@ TEST(ArenaTest, UnknownFields) {
   arena_message_3->mutable_unknown_fields()->AddVarint(1000, 42);
   arena_message_3->mutable_unknown_fields()->AddFixed32(1001, 42);
   arena_message_3->mutable_unknown_fields()->AddFixed64(1002, 42);
-  arena_message_3->mutable_unknown_fields()->AddLengthDelimited(1003, "");
+  arena_message_3->mutable_unknown_fields()->AddLengthDelimited(1003);
   arena_message_3->mutable_unknown_fields()->DeleteSubrange(0, 2);
   arena_message_3->mutable_unknown_fields()->DeleteByNumber(1002);
   arena_message_3->mutable_unknown_fields()->DeleteByNumber(1003);
@@ -1542,10 +1541,10 @@ TEST(ArenaTest, ClearOneofMessageOnArena) {
 #ifndef PROTOBUF_ASAN
   EXPECT_NE(child->moo_int(), 100);
 #else
-#if GTEST_HAS_DEATH_TEST
+#if GTEST_HAS_DEATH_TEST && defined(__cpp_if_constexpr)
   EXPECT_DEATH(EXPECT_EQ(child->moo_int(), 0), "use-after-poison");
-#endif  // !GTEST_HAS_DEATH_TEST
-#endif  // !PROTOBUF_ASAN
+#endif
+#endif
 }
 
 TEST(ArenaTest, CopyValuesWithinOneof) {

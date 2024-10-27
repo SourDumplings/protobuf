@@ -8,13 +8,13 @@ rust_test(
     name = "utf8_cpp_test",
     srcs = ["utf8_test.rs"],
     aliases = {
-        "//rust:protobuf_cpp_export": "protobuf",
+        "//rust:protobuf_cpp": "protobuf",
     },
     deps = [
         ":feature_verify_cpp_rust_proto",
         ":no_features_proto2_cpp_rust_proto",
         ":no_features_proto3_cpp_rust_proto",
-        "//rust:protobuf_cpp_export",
+        "//rust:protobuf_cpp",
         "@crate_index//:googletest",
     ],
 )
@@ -23,13 +23,13 @@ rust_test(
     name = "utf8_upb_test",
     srcs = ["utf8_test.rs"],
     aliases = {
-        "//rust:protobuf_upb_export": "protobuf",
+        "//rust:protobuf_upb": "protobuf",
     },
     deps = [
         ":feature_verify_upb_rust_proto",
         ":no_features_proto2_upb_rust_proto",
         ":no_features_proto3_upb_rust_proto",
-        "//rust:protobuf_upb_export",
+        "//rust:protobuf_upb",
         "@crate_index//:googletest",
     ],
 )

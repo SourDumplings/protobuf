@@ -475,25 +475,23 @@ void PyiGenerator::PrintMessage(
   }
 
   // Prints __init__
-  printer_->Print("def __init__(");
-  // If the message has a field named "self" (see b/144146793), it can still be
-  // passed to the initializer, which takes those as **kwargs. To avoid name
-  // collision, we rename the self parameter by appending underscores until it
-  // no longer collides. The self-parameter is in fact positional-only, so the
-  // name in the pyi doesn't matter with regard to what runtime usage is valid.
-  std::string self_arg_name = "self";
-  while (message_descriptor.FindFieldByName(self_arg_name) != nullptr) {
-    self_arg_name.append("_");
-  }
-  printer_->Print(self_arg_name);
-  bool has_python_keywords = false;
+  printer_->Print("def __init__(self");
+  bool has_key_words = false;
+  bool is_first = true;
   for (int i = 0; i < message_descriptor.field_count(); ++i) {
     const FieldDescriptor* field_des = message_descriptor.field(i);
     if (IsPythonKeyword(field_des->name())) {
-      has_python_keywords = true;
+      has_key_words = true;
       continue;
     }
     std::string field_name = std::string(field_des->name());
+    if (is_first && field_name == "self") {
+      // See b/144146793 for an example of real code that generates a (self,
+      // self) method signature. Since repeating a parameter name is illegal in
+      // Python, we rename the duplicate self.
+      field_name = "self_";
+    }
+    is_first = false;
     printer_->Print(", $field_name$: ", "field_name", field_name);
     Annotate("field_name", field_des);
     if (field_des->is_repeated() ||
@@ -535,7 +533,7 @@ void PyiGenerator::PrintMessage(
     }
     printer_->Print(" = ...");
   }
-  if (has_python_keywords) {
+  if (has_key_words) {
     printer_->Print(", **kwargs");
   }
   printer_->Print(") -> None: ...\n");
@@ -569,7 +567,7 @@ bool PyiGenerator::Generate(const FileDescriptor* file,
   import_map_.clear();
   // Calculate file name.
   file_ = file;
-  // In google3, devtools/python/bazel/pytype/pytype_impl.bzl uses --pyi_out to
+  // In google3, devtools/python/blaze/pytype/pytype_impl.bzl uses --pyi_out to
   // directly set the output file name.
   std::vector<std::pair<std::string, std::string> > options;
   ParseGeneratorParameter(parameter, &options);

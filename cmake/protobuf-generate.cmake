@@ -2,7 +2,7 @@ function(protobuf_generate)
   include(CMakeParseArguments)
 
   set(_options APPEND_PATH)
-  set(_singleargs LANGUAGE OUT_VAR EXPORT_MACRO PROTOC_OUT_DIR PLUGIN PLUGIN_OPTIONS DEPENDENCIES PROTOC_EXE)
+  set(_singleargs LANGUAGE OUT_VAR EXPORT_MACRO PROTOC_OUT_DIR PLUGIN PLUGIN_OPTIONS DEPENDENCIES)
   if(COMMAND target_sources)
     list(APPEND _singleargs TARGET)
   endif()
@@ -83,11 +83,6 @@ function(protobuf_generate)
     endforeach()
   endif()
 
-  if(NOT protobuf_generate_PROTOC_EXE)
-    # Default to using the CMake executable
-    set(protobuf_generate_PROTOC_EXE protobuf::protoc)
-  endif()
-
   foreach(DIR ${protobuf_generate_IMPORT_DIRS})
     get_filename_component(ABS_PATH ${DIR} ABSOLUTE)
     list(FIND _protobuf_include_path ${ABS_PATH} _contains_already)
@@ -148,7 +143,7 @@ function(protobuf_generate)
 
     add_custom_command(
       OUTPUT ${_generated_srcs}
-      COMMAND ${protobuf_generate_PROTOC_EXE}
+      COMMAND protobuf::protoc
       ARGS ${protobuf_generate_PROTOC_OPTIONS} --${protobuf_generate_LANGUAGE}_out ${_plugin_options}:${protobuf_generate_PROTOC_OUT_DIR} ${_plugin} ${_protobuf_include_path} ${_abs_file}
       DEPENDS ${_abs_file} ${protobuf_PROTOC_EXE} ${protobuf_generate_DEPENDENCIES}
       COMMENT ${_comment}

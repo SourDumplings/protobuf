@@ -51,6 +51,9 @@ class MessageGenerator {
   // Generate code to register all contained extensions with an
   // ExtensionRegistry.
   virtual void GenerateExtensionRegistrationCode(io::Printer* printer) = 0;
+  virtual void GenerateKotlinDsl(io::Printer* printer) const = 0;
+  virtual void GenerateKotlinMembers(io::Printer* printer) const = 0;
+  virtual void GenerateTopLevelKotlinMembers(io::Printer* printer) const = 0;
 
  protected:
   const Descriptor* descriptor_;

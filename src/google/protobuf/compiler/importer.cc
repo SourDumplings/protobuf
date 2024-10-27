@@ -216,11 +216,14 @@ const FileDescriptor* Importer::Import(const std::string& filename) {
   return pool_.FindFileByName(filename);
 }
 
-void Importer::AddDirectInputFile(absl::string_view file_name, bool is_error) {
-  pool_.AddDirectInputFile(file_name, is_error);
+void Importer::AddUnusedImportTrackFile(const std::string& file_name,
+                                        bool is_error) {
+  pool_.AddUnusedImportTrackFile(file_name, is_error);
 }
 
-void Importer::ClearDirectInputFiles() { pool_.ClearDirectInputFiles(); }
+void Importer::ClearUnusedImportTrackFiles() {
+  pool_.ClearUnusedImportTrackFiles();
+}
 
 
 // ===================================================================

@@ -12,18 +12,13 @@
 #include "google/protobuf/compiler/java/lite/enum.h"
 
 #include <string>
-#include <utility>
-#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/string_view.h"
 #include "google/protobuf/compiler/java/context.h"
 #include "google/protobuf/compiler/java/doc_comment.h"
 #include "google/protobuf/compiler/java/helpers.h"
-#include "google/protobuf/compiler/java/internal_helpers.h"
 #include "google/protobuf/compiler/java/name_resolver.h"
-#include "google/protobuf/descriptor.h"
 #include "google/protobuf/descriptor.pb.h"
 #include "google/protobuf/io/printer.h"
 
@@ -59,8 +54,6 @@ EnumLiteGenerator::~EnumLiteGenerator() {}
 void EnumLiteGenerator::Generate(io::Printer* printer) {
   WriteEnumDocComment(printer, descriptor_, context_->options());
   MaybePrintGeneratedAnnotation(context_, printer, descriptor_, immutable_api_);
-
-
   printer->Print(
       "$deprecation$public enum $classname$\n"
       "    implements com.google.protobuf.Internal.EnumLite {\n",
@@ -69,16 +62,17 @@ void EnumLiteGenerator::Generate(io::Printer* printer) {
   printer->Annotate("classname", descriptor_);
   printer->Indent();
 
-  for (const EnumValueDescriptor* value : canonical_values_) {
+  for (int i = 0; i < canonical_values_.size(); i++) {
     absl::flat_hash_map<absl::string_view, std::string> vars;
-    vars["name"] = value->name();
-    vars["number"] = absl::StrCat(value->number());
-    WriteEnumValueDocComment(printer, value, context_->options());
-    if (value->options().deprecated()) {
+    vars["name"] = canonical_values_[i]->name();
+    vars["number"] = absl::StrCat(canonical_values_[i]->number());
+    WriteEnumValueDocComment(printer, canonical_values_[i],
+                             context_->options());
+    if (canonical_values_[i]->options().deprecated()) {
       printer->Print("@java.lang.Deprecated\n");
     }
     printer->Print(vars, "$name$($number$),\n");
-    printer->Annotate("name", value);
+    printer->Annotate("name", canonical_values_[i]);
   }
 
   if (!descriptor_->is_closed()) {
@@ -92,15 +86,15 @@ void EnumLiteGenerator::Generate(io::Printer* printer) {
 
   // -----------------------------------------------------------------
 
-  for (const Alias& alias : aliases_) {
+  for (int i = 0; i < aliases_.size(); i++) {
     absl::flat_hash_map<absl::string_view, std::string> vars;
     vars["classname"] = descriptor_->name();
-    vars["name"] = alias.value->name();
-    vars["canonical_name"] = alias.canonical_value->name();
-    WriteEnumValueDocComment(printer, alias.value, context_->options());
+    vars["name"] = aliases_[i].value->name();
+    vars["canonical_name"] = aliases_[i].canonical_value->name();
+    WriteEnumValueDocComment(printer, aliases_[i].value, context_->options());
     printer->Print(
         vars, "public static final $classname$ $name$ = $canonical_name$;\n");
-    printer->Annotate("name", alias.value);
+    printer->Annotate("name", aliases_[i].value);
   }
 
   for (int i = 0; i < descriptor_->value_count(); i++) {
@@ -163,9 +157,10 @@ void EnumLiteGenerator::Generate(io::Printer* printer) {
   printer->Indent();
   printer->Indent();
 
-  for (const EnumValueDescriptor* value : canonical_values_) {
-    printer->Print("case $number$: return $name$;\n", "name", value->name(),
-                   "number", absl::StrCat(value->number()));
+  for (int i = 0; i < canonical_values_.size(); i++) {
+    printer->Print("case $number$: return $name$;\n", "name",
+                   canonical_values_[i]->name(), "number",
+                   absl::StrCat(canonical_values_[i]->number()));
   }
 
   printer->Outdent();
@@ -195,8 +190,8 @@ void EnumLiteGenerator::Generate(io::Printer* printer) {
       "\n"
       "private static final class $classname$Verifier implements \n"
       "     com.google.protobuf.Internal.EnumVerifier { \n"
-      "        static final com.google.protobuf.Internal.EnumVerifier\n"
-      "            INSTANCE = new $classname$Verifier();\n"
+      "        static final com.google.protobuf.Internal.EnumVerifier "
+      "          INSTANCE = new $classname$Verifier();\n"
       "        @java.lang.Override\n"
       "        public boolean isInRange(int number) {\n"
       "          return $classname$.forNumber(number) != null;\n"

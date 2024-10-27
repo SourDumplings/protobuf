@@ -26,7 +26,6 @@
 
 using conformance::ConformanceRequest;
 using conformance::ConformanceResponse;
-using conformance::TestStatus;
 using conformance::WireFormat;
 using protobuf_test_messages::editions::TestAllTypesEdition2023;
 using protobuf_test_messages::proto2::TestAllTypesProto2;
@@ -74,22 +73,19 @@ bool TextFormatConformanceTestSuite::ParseResponse(
   const std::string& test_name = setting.GetTestName();
   ConformanceLevel level = setting.GetLevel();
 
-  TestStatus test;
-  test.set_name(test_name);
   switch (response.result_case()) {
     case ConformanceResponse::kProtobufPayload: {
       if (requested_output != conformance::PROTOBUF) {
-        test.set_failure_message(absl::StrCat(
-            "Test was asked for ", WireFormatToString(requested_output),
-            " output but provided PROTOBUF instead."));
-        ReportFailure(test, level, request, response);
+        ReportFailure(test_name, level, request, response,
+                      absl::StrCat("Test was asked for ",
+                                   WireFormatToString(requested_output),
+                                   " output but provided PROTOBUF instead."));
         return false;
       }
 
       if (!test_message->ParseFromString(response.protobuf_payload())) {
-        test.set_failure_message(
-            "Protobuf output we received from test was unparseable.");
-        ReportFailure(test, level, request, response);
+        ReportFailure(test_name, level, request, response,
+                      "Protobuf output we received from test was unparseable.");
         return false;
       }
 
@@ -98,17 +94,18 @@ bool TextFormatConformanceTestSuite::ParseResponse(
 
     case ConformanceResponse::kTextPayload: {
       if (requested_output != conformance::TEXT_FORMAT) {
-        test.set_failure_message(absl::StrCat(
-            "Test was asked for ", WireFormatToString(requested_output),
-            " output but provided TEXT_FORMAT instead."));
-        ReportFailure(test, level, request, response);
+        ReportFailure(
+            test_name, level, request, response,
+            absl::StrCat("Test was asked for ",
+                         WireFormatToString(requested_output),
+                         " output but provided TEXT_FORMAT instead."));
         return false;
       }
 
       if (!ParseTextFormatResponse(response, setting, test_message)) {
-        test.set_failure_message(
+        ReportFailure(
+            test_name, level, request, response,
             "TEXT_FORMAT output we received from test was unparseable.");
-        ReportFailure(test, level, request, response);
         return false;
       }
 
@@ -147,14 +144,12 @@ TextFormatConformanceTestSuiteImpl<MessageType>::
   } else {
     if (MessageType::GetDescriptor()->name() == "TestAllTypesProto2") {
       RunGroupTests();
-      RunClosedEnumTests();
     }
     if (MessageType::GetDescriptor()->name() == "TestAllTypesEdition2023") {
       RunDelimitedTests();
     }
     if (MessageType::GetDescriptor()->name() == "TestAllTypesProto3") {
       RunAnyTests();
-      RunOpenEnumTests();
       // TODO Run these over proto2 also.
       RunAllTests();
     }
@@ -177,19 +172,14 @@ void TextFormatConformanceTestSuiteImpl<MessageType>::ExpectParseFailure(
       setting.ConformanceLevelToString(level), ".",
       setting.GetSyntaxIdentifier(), ".TextFormatInput.", test_name);
 
-  if (!suite_.RunTest(effective_test_name, request, &response)) {
-    return;
-  }
-
-  TestStatus test;
-  test.set_name(effective_test_name);
+  suite_.RunTest(effective_test_name, request, &response);
   if (response.result_case() == ConformanceResponse::kParseError) {
-    suite_.ReportSuccess(test);
+    suite_.ReportSuccess(effective_test_name);
   } else if (response.result_case() == ConformanceResponse::kSkipped) {
-    suite_.ReportSkip(test, request, response);
+    suite_.ReportSkip(effective_test_name, request, response);
   } else {
-    test.set_failure_message("Should have failed to parse, but didn't.");
-    suite_.ReportFailure(test, level, request, response);
+    suite_.ReportFailure(effective_test_name, level, request, response,
+                         "Should have failed to parse, but didn't.");
   }
 }
 
@@ -865,30 +855,6 @@ void TextFormatConformanceTestSuiteImpl<MessageType>::
       absl::StrCat("TestTextFormatPerformanceMergeMessageWithRepeatedField",
                    test_type_name),
       RECOMMENDED, input, expected);
-}
-
-template <typename MessageType>
-void TextFormatConformanceTestSuiteImpl<MessageType>::RunOpenEnumTests() {
-  RunValidTextFormatTest("ClosedEnumFieldByNumber", REQUIRED,
-                         R"(
-        optional_nested_enum: 1
-        )");
-  RunValidTextFormatTest("ClosedEnumFieldWithUnknownNumber", REQUIRED,
-                         R"(
-        optional_nested_enum: 42
-        )");
-}
-
-template <typename MessageType>
-void TextFormatConformanceTestSuiteImpl<MessageType>::RunClosedEnumTests() {
-  RunValidTextFormatTest("ClosedEnumFieldByNumber", REQUIRED,
-                         R"(
-        optional_nested_enum: 1
-        )");
-  ExpectParseFailure("ClosedEnumFieldWithUnknownNumber", REQUIRED,
-                     R"(
-        optional_nested_enum: 42
-        )");
 }
 
 }  // namespace protobuf

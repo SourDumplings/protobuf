@@ -7,7 +7,7 @@
 
 #import "GPBArray.h"
 
-#import "GPBMessage.h"
+@class GPBMessage;
 
 //%PDDM-DEFINE DECLARE_ARRAY_EXTRAS()
 //%ARRAY_INTERFACE_EXTRAS(Int32, int32_t)

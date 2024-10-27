@@ -11,13 +11,11 @@
 #include <utility>
 #include <vector>
 
-#include "absl/log/absl_check.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
 #include "absl/types/optional.h"
-#include "absl/types/span.h"
 #include "google/protobuf/compiler/cpp/helpers.h"
 #include "google/protobuf/compiler/cpp/options.h"
 #include "google/protobuf/descriptor.h"
@@ -102,11 +100,6 @@ std::vector<Sub> GenerateTrackerCalls(
       // Emit(), we need to include a newline here so that the line that follows
       // the annotation is on its own line.
       call_str.push_back('\n');
-      if (enable_tracking) {
-        call_str =
-            absl::StrCat("if (::", ProtobufNamespace(opts),
-                         "::internal::cpp::IsTrackingEnabled()) ", call_str);
-      }
     }
 
     subs.push_back(

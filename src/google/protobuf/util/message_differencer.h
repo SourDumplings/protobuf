@@ -739,6 +739,7 @@ class PROTOBUF_EXPORT MessageDifferencer {
     bool report_modified_aggregates_;
     const Message* message1_;
     const Message* message2_;
+    MessageDifferencer::UnpackAnyField unpack_any_field_;
   };
 
  private:

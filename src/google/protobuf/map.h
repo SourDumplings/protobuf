@@ -62,10 +62,6 @@ class MapIterator;
 template <typename Enum>
 struct is_proto_enum;
 
-namespace rust {
-struct PtrAndLen;
-}  // namespace rust
-
 namespace internal {
 template <typename Key, typename T>
 class MapFieldLite;
@@ -210,26 +206,24 @@ using KeyForBase = typename KeyForBaseImpl<T>::type;
 // only accept `key_type`.
 template <typename key_type>
 struct TransparentSupport {
-  static_assert(std::is_scalar<key_type>::value,
-                "Should only be used for ints.");
-
   // We hash all the scalars as uint64_t so that we can implement the same hash
   // function for VariantKey. This way we can have MapKey provide the same hash
   // as the underlying value would have.
-  using hash = absl::Hash<uint64_t>;
+  using hash = std::hash<
+      std::conditional_t<std::is_scalar<key_type>::value, uint64_t, key_type>>;
 
-  static bool Equals(key_type a, key_type b) { return a == b; }
+  static bool Equals(const key_type& a, const key_type& b) { return a == b; }
 
   template <typename K>
   using key_arg = key_type;
 
-  using ViewType = key_type;
-
-  static key_type ToView(key_type v) { return v; }
+  using ViewType = std::conditional_t<std::is_scalar<key_type>::value, key_type,
+                                      const key_type&>;
+  static ViewType ToView(const key_type& v) { return v; }
 };
 
 // We add transparent support for std::string keys. We use
-// absl::Hash<absl::string_view> as it supports the input types we care about.
+// std::hash<absl::string_view> as it supports the input types we care about.
 // The lookup functions accept arbitrary `K`. This will include any key type
 // that is convertible to absl::string_view.
 template <>
@@ -352,6 +346,12 @@ struct VariantKey {
     if (data == nullptr) data = "";
   }
 
+  size_t Hash() const {
+    return data == nullptr ? std::hash<uint64_t>{}(integral)
+                           : absl::Hash<absl::string_view>{}(
+                                 absl::string_view(data, integral));
+  }
+
   friend bool operator<(const VariantKey& left, const VariantKey& right) {
     ABSL_DCHECK_EQ(left.data == nullptr, right.data == nullptr);
     if (left.integral != right.integral) {
@@ -374,26 +374,12 @@ struct RealKeyToVariantKey {
   VariantKey operator()(T value) const { return VariantKey(value); }
 };
 
-template <typename T, typename = void>
-struct RealKeyToVariantKeyAlternative;
-
-template <typename T>
-struct RealKeyToVariantKeyAlternative<
-    T, typename std::enable_if<std::is_integral<T>::value>::type> {
-  uint64_t operator()(uint64_t value) const { return value; }
-};
-
 template <>
 struct RealKeyToVariantKey<std::string> {
   template <typename T>
   VariantKey operator()(const T& value) const {
     return VariantKey(TransparentSupport<std::string>::ImplicitConvert(value));
   }
-};
-
-template <>
-struct RealKeyToVariantKeyAlternative<std::string> {
-  absl::string_view operator()(absl::string_view value) const { return value; }
 };
 
 // We use a single kind of tree for all maps. This reduces code duplication.
@@ -480,9 +466,12 @@ class UntypedMapIterator {
   // are updated to be correct also, but those fields can become stale
   // if the underlying map is modified.  When those fields are needed they
   // are rechecked, and updated if necessary.
+  UntypedMapIterator() : node_(nullptr), m_(nullptr), bucket_index_(0) {}
 
-  // We do not provide any constructors for this type. We need it to be a
-  // trivial type to ensure that we can safely share it with Rust.
+  explicit UntypedMapIterator(const UntypedMapBase* m);
+
+  UntypedMapIterator(NodeBase* n, const UntypedMapBase* m, map_index_t index)
+      : node_(n), m_(m), bucket_index_(index) {}
 
   // Advance through buckets, looking for the first that isn't empty.
   // If nothing non-empty is found then leave node_ == nullptr.
@@ -530,8 +519,6 @@ class UntypedMapIterator {
 };
 
 // These properties are depended upon by Rust FFI.
-static_assert(std::is_trivial<UntypedMapIterator>::value,
-              "UntypedMapIterator must be a trivial type.");
 static_assert(std::is_trivially_copyable<UntypedMapIterator>::value,
               "UntypedMapIterator must be trivially copyable.");
 static_assert(std::is_trivially_destructible<UntypedMapIterator>::value,
@@ -592,18 +579,17 @@ class PROTOBUF_EXPORT UntypedMapBase {
   }
   size_type size() const { return num_elements_; }
   bool empty() const { return size() == 0; }
-  UntypedMapIterator begin() const;
 
+  UntypedMapIterator begin() const { return UntypedMapIterator(this); }
   // We make this a static function to reduce the cost in MapField.
   // All the end iterators are singletons anyway.
-  static UntypedMapIterator EndIterator() { return {nullptr, nullptr, 0}; }
+  static UntypedMapIterator EndIterator() { return {}; }
 
  protected:
   friend class TcParser;
   friend struct MapTestPeer;
   friend struct MapBenchmarkPeer;
   friend class UntypedMapIterator;
-  friend class RustMapHelper;
 
   struct NodeAndBucket {
     NodeBase* node;
@@ -699,21 +685,13 @@ class PROTOBUF_EXPORT UntypedMapBase {
   TableEntryPtr ConvertToTree(NodeBase* node, GetKey get_key);
   void EraseFromTree(map_index_t b, typename Tree::iterator tree_it);
 
-  map_index_t VariantBucketNumber(VariantKey key) const {
-    return key.data == nullptr
-               ? VariantBucketNumber(key.integral)
-               : VariantBucketNumber(absl::string_view(
-                     key.data, static_cast<size_t>(key.integral)));
-  }
+  map_index_t VariantBucketNumber(VariantKey key) const;
 
-  map_index_t VariantBucketNumber(absl::string_view key) const {
-    return static_cast<map_index_t>(absl::HashOf(seed_, key) &
-                                    (num_buckets_ - 1));
-  }
-
-  map_index_t VariantBucketNumber(uint64_t key) const {
-    return static_cast<map_index_t>(absl::HashOf(key ^ seed_) &
-                                    (num_buckets_ - 1));
+  map_index_t BucketNumberFromHash(uint64_t h) const {
+    // We xor the hash value against the random seed so that we effectively
+    // have a random hash function.
+    // We use absl::Hash to do bit mixing for uniform bucket selection.
+    return absl::HashOf(h ^ seed_) & (num_buckets_ - 1);
   }
 
   TableEntryPtr* CreateEmptyTable(map_index_t n) {
@@ -816,21 +794,18 @@ class PROTOBUF_EXPORT UntypedMapBase {
   Allocator alloc_;
 };
 
-inline UntypedMapIterator UntypedMapBase::begin() const {
-  map_index_t bucket_index;
-  NodeBase* node;
-  if (index_of_first_non_null_ == num_buckets_) {
-    bucket_index = 0;
-    node = nullptr;
+inline UntypedMapIterator::UntypedMapIterator(const UntypedMapBase* m) : m_(m) {
+  if (m_->index_of_first_non_null_ == m_->num_buckets_) {
+    bucket_index_ = 0;
+    node_ = nullptr;
   } else {
-    bucket_index = index_of_first_non_null_;
-    TableEntryPtr entry = table_[bucket_index];
-    node = PROTOBUF_PREDICT_TRUE(internal::TableEntryIsList(entry))
-               ? TableEntryToNode(entry)
-               : TableEntryToTree(entry)->begin()->second;
-    PROTOBUF_ASSUME(node != nullptr);
+    bucket_index_ = m_->index_of_first_non_null_;
+    TableEntryPtr entry = m_->table_[bucket_index_];
+    node_ = PROTOBUF_PREDICT_TRUE(TableEntryIsList(entry))
+                ? TableEntryToNode(entry)
+                : TableEntryToTree(entry)->begin()->second;
+    PROTOBUF_ASSUME(node_ != nullptr);
   }
-  return UntypedMapIterator{node, this, bucket_index};
 }
 
 inline void UntypedMapIterator::SearchFrom(map_index_t start_bucket) {
@@ -949,7 +924,6 @@ class KeyMapBase : public UntypedMapBase {
   friend class TcParser;
   friend struct MapTestPeer;
   friend struct MapBenchmarkPeer;
-  friend class RustMapHelper;
 
   PROTOBUF_NOINLINE void erase_no_destroy(map_index_t b, KeyNode* node) {
     TreeIterator tree_it;
@@ -1019,7 +993,7 @@ class KeyMapBase : public UntypedMapBase {
     // determined whether we are inserting into an empty list, a short list,
     // or whatever.  But it's probably cheap enough to recompute that here;
     // it's likely that we're inserting into an empty or short list.
-    ABSL_DCHECK(FindHelper(TS::ToView(node->key())).node == nullptr);
+    ABSL_DCHECK(FindHelper(node->key()).node == nullptr);
     if (TableEntryIsEmpty(b)) {
       InsertUniqueInList(b, node);
       index_of_first_non_null_ = (std::min)(index_of_first_non_null_, b);
@@ -1118,16 +1092,15 @@ class KeyMapBase : public UntypedMapBase {
   void TransferList(KeyNode* node) {
     do {
       auto* next = static_cast<KeyNode*>(node->next);
-      InsertUnique(BucketNumber(TS::ToView(node->key())), node);
+      InsertUnique(BucketNumber(node->key()), node);
       node = next;
     } while (node != nullptr);
   }
 
   map_index_t BucketNumber(typename TS::ViewType k) const {
-    ABSL_DCHECK_EQ(
-        VariantBucketNumber(RealKeyToVariantKeyAlternative<Key>{}(k)),
-        VariantBucketNumber(RealKeyToVariantKey<Key>{}(k)));
-    return VariantBucketNumber(RealKeyToVariantKeyAlternative<Key>{}(k));
+    ABSL_DCHECK_EQ(BucketNumberFromHash(hash_function()(k)),
+                   VariantBucketNumber(RealKeyToVariantKey<Key>{}(k)));
+    return BucketNumberFromHash(hash_function()(k));
   }
 
   // Assumes node_ and m_ are correct and non-null, but other fields may be
@@ -1154,7 +1127,7 @@ class KeyMapBase : public UntypedMapBase {
     // not.  Revalidate just to be sure.  This case is rare enough that we
     // don't worry about potential optimizations, such as having a custom
     // find-like method that compares Node* instead of the key.
-    auto res = FindHelper(TS::ToView(node->key()), it);
+    auto res = FindHelper(node->key(), it);
     bucket_index = res.bucket;
     return TableEntryIsList(bucket_index);
   }
@@ -1165,78 +1138,6 @@ bool InitializeMapKey(T*, K&&, Arena*) {
   return false;
 }
 
-
-// The purpose of this class is to give the Rust implementation visibility into
-// some of the internals of C++ proto maps. We need access to these internals
-// to be able to implement Rust map operations without duplicating the same
-// functionality for every message type.
-class RustMapHelper {
- public:
-  using NodeAndBucket = UntypedMapBase::NodeAndBucket;
-  using ClearInput = UntypedMapBase::ClearInput;
-
-  static void GetSizeAndAlignment(const google::protobuf::MessageLite* m, uint16_t* size,
-                                  uint8_t* alignment) {
-    const auto* class_data = m->GetClassData();
-    *size = static_cast<uint16_t>(class_data->allocation_size());
-    *alignment = class_data->alignment();
-  }
-
-  static constexpr MapNodeSizeInfoT MakeSizeInfo(uint16_t size,
-                                                 uint16_t value_offset) {
-    return MakeNodeInfo(size, value_offset);
-  }
-
-  template <typename Key, typename Value>
-  static constexpr MapNodeSizeInfoT SizeInfo() {
-    return Map<Key, Value>::Node::size_info();
-  }
-
-  enum {
-    kKeyIsString = UntypedMapBase::kKeyIsString,
-    kValueIsString = UntypedMapBase::kValueIsString,
-    kValueIsProto = UntypedMapBase::kValueIsProto,
-  };
-
-  static NodeBase* AllocNode(UntypedMapBase* m, MapNodeSizeInfoT size_info) {
-    return m->AllocNode(size_info);
-  }
-
-  static void DeallocNode(UntypedMapBase* m, NodeBase* node,
-                          MapNodeSizeInfoT size_info) {
-    return m->DeallocNode(node, size_info);
-  }
-
-  template <typename Map, typename Key>
-  static NodeAndBucket FindHelper(Map* m, Key key) {
-    return m->FindHelper(key);
-  }
-
-  template <typename Map>
-  static typename Map::KeyNode* InsertOrReplaceNode(Map* m, NodeBase* node) {
-    return m->InsertOrReplaceNode(static_cast<typename Map::KeyNode*>(node));
-  }
-
-  template <typename Map>
-  static void EraseNoDestroy(Map* m, map_index_t bucket, NodeBase* node) {
-    m->erase_no_destroy(bucket, static_cast<typename Map::KeyNode*>(node));
-  }
-
-  static google::protobuf::MessageLite* PlacementNew(const MessageLite* prototype,
-                                           void* mem) {
-    return prototype->GetClassData()->PlacementNew(mem, /* arena = */ nullptr);
-  }
-
-  static void DestroyMessage(MessageLite* m) { m->DestroyInstance(); }
-
-  static void ClearTable(UntypedMapBase* m, ClearInput input) {
-    m->ClearTable(input);
-  }
-
-  static bool IsGlobalEmptyTable(const UntypedMapBase* m) {
-    return m->num_buckets_ == kGlobalEmptyTableSize;
-  }
-};
 
 }  // namespace internal
 
@@ -1351,11 +1252,6 @@ class Map : private internal::KeyMapBase<internal::KeyForBase<Key>> {
                       internal::is_internal_map_value_type<mapped_type>>::value,
                   "We only support scalar, Message, and designated internal "
                   "mapped types.");
-    // The Rust implementation that wraps C++ protos relies on the ability to
-    // create an UntypedMapBase and cast a pointer of it to google::protobuf::Map*.
-    static_assert(
-        sizeof(Map) == sizeof(internal::UntypedMapBase),
-        "Map must not have any data members beyond what is in UntypedMapBase.");
   }
 
   template <typename P>
@@ -1389,10 +1285,9 @@ class Map : private internal::KeyMapBase<internal::KeyForBase<Key>> {
     using pointer = const value_type*;
     using reference = const value_type&;
 
-    const_iterator() : BaseIt{nullptr, nullptr, 0} {}
+    const_iterator() {}
     const_iterator(const const_iterator&) = default;
     const_iterator& operator=(const const_iterator&) = default;
-    explicit const_iterator(BaseIt it) : BaseIt(it) {}
 
     reference operator*() const { return static_cast<Node*>(this->node_)->kv; }
     pointer operator->() const { return &(operator*()); }
@@ -1416,6 +1311,7 @@ class Map : private internal::KeyMapBase<internal::KeyForBase<Key>> {
 
    private:
     using BaseIt::BaseIt;
+    explicit const_iterator(const BaseIt& base) : BaseIt(base) {}
     friend class Map;
     friend class internal::UntypedMapIterator;
     friend class internal::TypeDefinedMapFieldBase<Key, T>;
@@ -1431,10 +1327,9 @@ class Map : private internal::KeyMapBase<internal::KeyForBase<Key>> {
     using pointer = value_type*;
     using reference = value_type&;
 
-    iterator() : BaseIt{nullptr, nullptr, 0} {}
+    iterator() {}
     iterator(const iterator&) = default;
     iterator& operator=(const iterator&) = default;
-    explicit iterator(BaseIt it) : BaseIt(it) {}
 
     reference operator*() const { return static_cast<Node*>(this->node_)->kv; }
     pointer operator->() const { return &(operator*()); }
@@ -1466,12 +1361,10 @@ class Map : private internal::KeyMapBase<internal::KeyForBase<Key>> {
     friend class Map;
   };
 
-  iterator begin() ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return iterator(Base::begin());
-  }
+  iterator begin() ABSL_ATTRIBUTE_LIFETIME_BOUND { return iterator(this); }
   iterator end() ABSL_ATTRIBUTE_LIFETIME_BOUND { return iterator(); }
   const_iterator begin() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return const_iterator(Base::begin());
+    return const_iterator(this);
   }
   const_iterator end() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return const_iterator();
@@ -1525,8 +1418,7 @@ class Map : private internal::KeyMapBase<internal::KeyForBase<Key>> {
   template <typename K = key_type>
   iterator find(const key_arg<K>& key) ABSL_ATTRIBUTE_LIFETIME_BOUND {
     auto res = this->FindHelper(TS::ToView(key));
-    return iterator(internal::UntypedMapIterator{static_cast<Node*>(res.node),
-                                                 this, res.bucket});
+    return iterator(static_cast<Node*>(res.node), this, res.bucket);
   }
 
   template <typename K = key_type>
@@ -1668,10 +1560,6 @@ class Map : private internal::KeyMapBase<internal::KeyForBase<Key>> {
     return SpaceUsedInternal() + internal::SpaceUsedInValues(this);
   }
 
-  static constexpr size_t InternalGetArenaOffset(internal::InternalVisibility) {
-    return PROTOBUF_FIELD_OFFSET(Map, alloc_);
-  }
-
  private:
   struct Rank1 {};
   struct Rank0 : Rank1 {};
@@ -1730,9 +1618,8 @@ class Map : private internal::KeyMapBase<internal::KeyForBase<Key>> {
     internal::map_index_t b = p.bucket;
     // Case 1: key was already present.
     if (p.node != nullptr)
-      return std::make_pair(iterator(internal::UntypedMapIterator{
-                                static_cast<Node*>(p.node), this, p.bucket}),
-                            false);
+      return std::make_pair(
+          iterator(static_cast<Node*>(p.node), this, p.bucket), false);
     // Case 2: insert.
     if (this->ResizeIfLoadIsOutOfRange(this->num_elements_ + 1)) {
       b = this->BucketNumber(TS::ToView(k));
@@ -1759,8 +1646,7 @@ class Map : private internal::KeyMapBase<internal::KeyForBase<Key>> {
 
     this->InsertUnique(b, node);
     ++this->num_elements_;
-    return std::make_pair(iterator(internal::UntypedMapIterator{node, this, b}),
-                          true);
+    return std::make_pair(iterator(node, this, b), true);
   }
 
   // A helper function to perform an assignment of `mapped_type`.
@@ -1816,7 +1702,6 @@ class Map : private internal::KeyMapBase<internal::KeyForBase<Key>> {
   friend class internal::TcParser;
   friend struct internal::MapTestPeer;
   friend struct internal::MapBenchmarkPeer;
-  friend class internal::RustMapHelper;
 };
 
 namespace internal {

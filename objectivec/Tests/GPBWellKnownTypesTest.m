@@ -5,10 +5,11 @@
 // license that can be found in the LICENSE file or at
 // https://developers.google.com/open-source/licenses/bsd
 
+#import "GPBWellKnownTypes.h"
+
 #import <XCTest/XCTest.h>
 
 #import "GPBTestUtilities.h"
-#import "GPBWellKnownTypes.h"
 #import "objectivec/Tests/AnyTest.pbobjc.h"
 
 // Nanosecond time accuracy

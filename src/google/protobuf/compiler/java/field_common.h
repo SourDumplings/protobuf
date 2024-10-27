@@ -3,7 +3,6 @@
 
 #include <string>
 
-#include "google/protobuf/compiler/java/options.h"
 #include "google/protobuf/descriptor.h"
 
 namespace google {
@@ -16,7 +15,6 @@ struct FieldGeneratorInfo {
   std::string name;
   std::string capitalized_name;
   std::string disambiguated_reason;
-  Options options;
 };
 
 // Oneof information used in OneofFieldGenerators.

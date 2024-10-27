@@ -11,9 +11,7 @@
 #include <cstdint>
 #include <iostream>
 #include <limits>
-#include <memory>
 #include <string>
-#include <type_traits>
 #include <utility>
 
 #include <gmock/gmock.h>
@@ -34,7 +32,6 @@
 #include "google/protobuf/test_util_lite.h"
 #include "google/protobuf/unittest_lite.pb.h"
 #include "google/protobuf/wire_format_lite.h"
-
 
 // Must be included last
 #include "google/protobuf/port_def.inc"
@@ -1191,7 +1188,6 @@ TYPED_TEST(LiteTest, EnumValueToName) {
   EXPECT_EQ("", protobuf_unittest::ForeignEnumLite_Name(999));
 }
 
-
 TYPED_TEST(LiteTest, NestedEnumValueToName) {
   EXPECT_EQ("FOO", protobuf_unittest::TestAllTypesLite::NestedEnum_Name(
                        protobuf_unittest::TestAllTypesLite::FOO));
@@ -1354,7 +1350,7 @@ TEST(LiteBasicTest, CodedInputStreamRollback) {
   }
 }
 
-// Two arbitrary types
+// Two arbitary types
 using CastType1 = protobuf_unittest::TestAllTypesLite;
 using CastType2 = protobuf_unittest::TestPackedTypesLite;
 
@@ -1382,36 +1378,17 @@ TEST(LiteTest, DynamicCastMessage) {
   const MessageLite& test_type_1_pointer_const_ref = test_type_1;
   EXPECT_EQ(&test_type_1,
             &DynamicCastMessage<CastType1>(test_type_1_pointer_const_ref));
-
-  std::shared_ptr<MessageLite> shared(new CastType1);
-  EXPECT_EQ(1, shared.use_count());
-  std::shared_ptr<CastType1> shared_1 = DynamicCastMessage<CastType1>(shared);
-  // Check that both shared_ptr instances are pointing to the same control
-  // block by checking use_count().
-  EXPECT_EQ(2, shared.use_count());
-  EXPECT_EQ(shared_1.get(), shared.get());
-  std::shared_ptr<CastType2> shared_2 = DynamicCastMessage<CastType2>(shared);
-  EXPECT_EQ(2, shared.use_count());
-  EXPECT_EQ(shared_2, nullptr);
 }
 
+#if GTEST_HAS_DEATH_TEST
 TEST(LiteTest, DynamicCastMessageInvalidReferenceType) {
   CastType1 test_type_1;
   const MessageLite& test_type_1_pointer_const_ref = test_type_1;
-#if defined(ABSL_HAVE_EXCEPTIONS)
-  EXPECT_THROW(DynamicCastMessage<CastType2>(test_type_1_pointer_const_ref),
-               std::bad_cast);
-#elif defined(GTEST_HAS_DEATH_TEST)
-  ASSERT_DEATH(
-      DynamicCastMessage<CastType2>(test_type_1_pointer_const_ref),
-      absl::StrCat("Cannot downcast ", test_type_1.GetTypeName(), " to ",
-                   CastType2::default_instance().GetTypeName()));
-#else
-  (void)test_type_1;
-  (void)test_type_1_pointer_const_ref;
-  GTEST_SKIP() << "Can't test the failure.";
-#endif
+  ASSERT_DEATH(DynamicCastMessage<CastType2>(test_type_1_pointer_const_ref),
+               "Cannot downcast " + test_type_1.GetTypeName() + " to " +
+                   CastType2::default_instance().GetTypeName());
 }
+#endif  // GTEST_HAS_DEATH_TEST
 
 TEST(LiteTest, DownCastMessageValidType) {
   CastType1 test_type_1;
@@ -1440,10 +1417,9 @@ TEST(LiteTest, DownCastMessageInvalidPointerType) {
 
   MessageLite* test_type_1_pointer = &test_type_1;
 
-  ASSERT_DEBUG_DEATH(
-      DownCastMessage<CastType2>(test_type_1_pointer),
-      absl::StrCat("Cannot downcast ", test_type_1.GetTypeName(), " to ",
-                   CastType2::default_instance().GetTypeName()));
+  ASSERT_DEBUG_DEATH(DownCastMessage<CastType2>(test_type_1_pointer),
+                     "Cannot downcast " + test_type_1.GetTypeName() + " to " +
+                         CastType2::default_instance().GetTypeName());
 }
 
 TEST(LiteTest, DownCastMessageInvalidReferenceType) {
@@ -1451,10 +1427,9 @@ TEST(LiteTest, DownCastMessageInvalidReferenceType) {
 
   MessageLite& test_type_1_pointer = test_type_1;
 
-  ASSERT_DEBUG_DEATH(
-      DownCastMessage<CastType2>(test_type_1_pointer),
-      absl::StrCat("Cannot downcast ", test_type_1.GetTypeName(), " to ",
-                   CastType2::default_instance().GetTypeName()));
+  ASSERT_DEBUG_DEATH(DownCastMessage<CastType2>(test_type_1_pointer),
+                     "Cannot downcast " + test_type_1.GetTypeName() + " to " +
+                         CastType2::default_instance().GetTypeName());
 }
 #endif  // GTEST_HAS_DEATH_TEST
 

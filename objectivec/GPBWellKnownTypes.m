@@ -11,7 +11,6 @@
 
 #import "GPBWellKnownTypes.h"
 
-#import "GPBUtilities.h"
 #import "GPBUtilities_PackagePrivate.h"
 
 NSString *const GPBWellKnownTypesErrorDomain = GPBNSStringifySymbol(GPBWellKnownTypesErrorDomain);
@@ -114,6 +113,10 @@ static NSString *ParseTypeFromURL(NSString *typeURLString) {
   return self;
 }
 
+- (instancetype)initWithTimeIntervalSince1970:(NSTimeInterval)timeIntervalSince1970 {
+  return [self initWithTimeInterval:timeIntervalSince1970];
+}
+
 - (NSTimeInterval)timeInterval {
   return TimeIntervalFromSecondsAndNanos(self.seconds, self.nanos);
 }
@@ -123,6 +126,14 @@ static NSString *ParseTypeFromURL(NSString *typeURLString) {
   int32_t nanos = SecondsAndNanosFromTimeInterval(timeInterval, &seconds, NO);
   self.seconds = seconds;
   self.nanos = nanos;
+}
+
+- (NSTimeInterval)timeIntervalSince1970 {
+  return self.timeInterval;
+}
+
+- (void)setTimeIntervalSince1970:(NSTimeInterval)timeIntervalSince1970 {
+  self.timeInterval = timeIntervalSince1970;
 }
 
 @end

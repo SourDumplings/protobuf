@@ -20,7 +20,9 @@ load(
     "tmpl_cc_binary",
 )
 
-package(default_applicable_licenses = ["//:license"])
+# begin:google_only
+# package(default_applicable_licenses = ["//upb:license"])
+# end:google_only
 
 licenses(["notice"])
 
@@ -72,6 +74,7 @@ cc_test(
         "//:protobuf",
         "//src/google/protobuf/json",
         "//upb:base",
+        "//upb:descriptor_upb_proto",
         "//upb:json",
         "//upb:mem",
         "//upb:reflection",
@@ -235,7 +238,7 @@ genrule(
     ),
     outs = ["size_data.txt"],
     # We want --format=GNU which counts rodata with data, not text.
-    cmd = "size $$([ $$OSTYPE == 'linux-gnu' ] && echo '--format=GNU -d' || echo '') $(SRCS) > $@",
+    cmd = "size $$($$OSTYPE == 'linux-gnu' ? '--format=GNU -d' : '') $(SRCS) > $@",
     # "size" sometimes isn't available remotely.
     local = 1,
     tags = ["no-remote-exec"],

@@ -21,5 +21,3 @@ use protobuf_cpp as kernel;
 use protobuf_upb as kernel;
 
 pub use kernel::__public::*;
-
-pub use kernel::prelude;

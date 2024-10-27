@@ -7,7 +7,8 @@
 
 #import <Foundation/Foundation.h>
 
-#import "GPBDescriptor.h"
+@class GPBDescriptor;
+@class GPBExtensionDescriptor;
 
 NS_ASSUME_NONNULL_BEGIN
 

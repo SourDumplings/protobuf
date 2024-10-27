@@ -147,9 +147,7 @@ message TestAllTypes {
     ctype = CORD
   ];
 
-  repeated NestedMessage repeated_lazy_message = 57 [
-    lazy = true
-  ];
+  repeated NestedMessage repeated_lazy_message = 57 ;
 
   // Singular with defaults
   int32 default_int32 = 61 [
@@ -307,14 +305,6 @@ enum ForeignEnum {
   FOREIGN_BAZ = 6;
   FOREIGN_BAX = 32; // (1 << 32) to generate a 64b bitmask would be incorrect.
   FOREIGN_LARGE = 123456; // Large enough to escape the Boxed Integer cache.
-}
-
-enum TestDeprecatedEnum {
-  option deprecated = true;
-
-  TEST_DEPRECATED_ENUM_UNSPECIFIED = 0;
-  TEST_DEPRECATED_ENUM_VALUE1 = 1;
-  TEST_DEPRECATED_ENUM_VALUE2 = 2;
 }
 
 message TestReservedFields {
@@ -1725,14 +1715,6 @@ message OpenEnumMessage {
   repeated ForeignEnum repeated_closed = 4;
 }
 
-// Tests eager verification of a lazy message field.
-message TestEagerlyVerifiedLazyMessage {
-  message LazyMessage {
-    bytes bytes_field = 1;
-  }
-  LazyMessage lazy_message = 1 [lazy = true];
-}
-
 // Test that RPC services work.
 message FooRequest {
 }
@@ -2572,42 +2554,4 @@ message TestMessageWithManyRepeatedPtrFields {
   repeated string repeated_string_30 = 30;
   repeated string repeated_string_31 = 31;
   repeated string repeated_string_32 = 32;
-}
-
-message MessageCreatorZeroInit {
-  int32 i = 1;
-  double d = 2;
-  MessageCreatorZeroInit m = 3;
-
-  oneof one {
-    string os = 10;
-    string oc = 11 [
-      ctype = CORD
-    ];
-
-    fixed64 of = 12;
-    MessageCreatorZeroInit ol = 13 [
-      lazy = true
-    ];
-  }
-}
-
-message MessageCreatorMemcpy {
-  string s = 1;
-  repeated int32 i = 2 [
-    features.repeated_field_encoding = PACKED
-  ];
-
-  MessageCreatorMemcpy m = 3 [
-    lazy = true
-  ];
-
-  map<int32, int32> m2 = 4;
-}
-
-message MessageCreatorFunc {
-  // This one is ArenaDtorNeeds::kRequired so we must run the constructor.
-  string c = 3 [
-    ctype = CORD
-  ];
 }

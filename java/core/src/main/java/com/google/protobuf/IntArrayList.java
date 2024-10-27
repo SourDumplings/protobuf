@@ -8,7 +8,6 @@
 package com.google.protobuf;
 
 import static com.google.protobuf.Internal.checkNotNull;
-import static java.lang.Math.max;
 
 import com.google.protobuf.Internal.IntList;
 import java.util.Arrays;
@@ -23,9 +22,7 @@ import java.util.RandomAccess;
 final class IntArrayList extends AbstractProtobufList<Integer>
     implements IntList, RandomAccess, PrimitiveNonBoxingCollection {
 
-  private static final int[] EMPTY_ARRAY = new int[0];
-
-  private static final IntArrayList EMPTY_LIST = new IntArrayList(EMPTY_ARRAY, 0, false);
+  private static final IntArrayList EMPTY_LIST = new IntArrayList(new int[0], 0, false);
 
   public static IntArrayList emptyList() {
     return EMPTY_LIST;
@@ -42,7 +39,7 @@ final class IntArrayList extends AbstractProtobufList<Integer>
 
   /** Constructs a new mutable {@code IntArrayList} with default capacity. */
   IntArrayList() {
-    this(EMPTY_ARRAY, 0, true);
+    this(new int[DEFAULT_CAPACITY], 0, true);
   }
 
   /**
@@ -103,8 +100,7 @@ final class IntArrayList extends AbstractProtobufList<Integer>
     if (capacity < size) {
       throw new IllegalArgumentException();
     }
-    int[] newArray = capacity == 0 ? EMPTY_ARRAY : Arrays.copyOf(array, capacity);
-    return new IntArrayList(newArray, size, true);
+    return new IntArrayList(Arrays.copyOf(array, capacity), size, true);
   }
 
   @Override
@@ -173,7 +169,8 @@ final class IntArrayList extends AbstractProtobufList<Integer>
   public void addInt(int element) {
     ensureIsMutable();
     if (size == array.length) {
-      int length = growSize(array.length);
+      // Resize to 1.5x the size
+      int length = ((size * 3) / 2) + 1;
       int[] newArray = new int[length];
 
       System.arraycopy(array, 0, newArray, 0, size);
@@ -194,7 +191,8 @@ final class IntArrayList extends AbstractProtobufList<Integer>
       // Shift everything over to make room
       System.arraycopy(array, index, array, index + 1, size - index);
     } else {
-      int length = growSize(array.length);
+      // Resize to 1.5x the size
+      int length = ((size * 3) / 2) + 1;
       int[] newArray = new int[length];
 
       // Copy the first part directly
@@ -254,30 +252,6 @@ final class IntArrayList extends AbstractProtobufList<Integer>
     size--;
     modCount++;
     return value;
-  }
-
-  /** Ensures the backing array can fit at least minCapacity elements. */
-  void ensureCapacity(int minCapacity) {
-    if (minCapacity <= array.length) {
-      return;
-    }
-    if (array.length == 0) {
-      array = new int[max(minCapacity, DEFAULT_CAPACITY)];
-      return;
-    }
-    // To avoid quadratic copying when calling .addAllFoo(List) in a loop, we must not size to
-    // exactly the requested capacity, but must exponentially grow instead. This is similar
-    // behaviour to ArrayList.
-    int n = array.length;
-    while (n < minCapacity) {
-      n = growSize(n);
-    }
-    array = Arrays.copyOf(array, n);
-  }
-
-  private static int growSize(int previousSize) {
-    // Resize to 1.5x the size, rounding up to DEFAULT_CAPACITY.
-    return max(((previousSize * 3) / 2) + 1, DEFAULT_CAPACITY);
   }
 
   /**

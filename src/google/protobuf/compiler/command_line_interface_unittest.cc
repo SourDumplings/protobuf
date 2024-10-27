@@ -52,7 +52,6 @@
 #include "google/protobuf/test_util2.h"
 #include "google/protobuf/unittest.pb.h"
 #include "google/protobuf/unittest_custom_options.pb.h"
-#include "google/protobuf/unittest_import.pb.h"
 
 #ifdef GOOGLE_PROTOBUF_USE_BAZEL_GENERATED_PLUGIN_PATHS
 // This is needed because of https://github.com/bazelbuild/bazel/issues/19124.
@@ -979,7 +978,7 @@ TEST_F(CommandLineInterfaceTest,
   ExpectNoErrors();
 }
 
-TEST_F(CommandLineInterfaceTest, ReportsTransitiveMissingImports_LeafFirst) {
+TEST_F(CommandLineInterfaceTest, ReportsTransitiveMisingImports_LeafFirst) {
   CreateTempFile("unused.proto",
                  "syntax = \"proto2\";\n"
                  "message Unused {}\n");
@@ -1000,7 +999,7 @@ TEST_F(CommandLineInterfaceTest, ReportsTransitiveMissingImports_LeafFirst) {
       "bar.proto:2:1: warning: Import unused.proto is unused.");
 }
 
-TEST_F(CommandLineInterfaceTest, ReportsTransitiveMissingImports_LeafLast) {
+TEST_F(CommandLineInterfaceTest, ReportsTransitiveMisingImports_LeafLast) {
   CreateTempFile("unused.proto",
                  "syntax = \"proto2\";\n"
                  "message Unused {}\n");
@@ -1553,54 +1552,6 @@ TEST_F(CommandLineInterfaceTest, Plugin_DeprecatedEdition) {
       "edition 99997_TEST_ONLY.");
 }
 
-TEST_F(CommandLineInterfaceTest, Plugin_DeprecatedFeature) {
-  CreateTempFile("google/protobuf/descriptor.proto",
-                 google::protobuf::DescriptorProto::descriptor()->file()->DebugString());
-  CreateTempFile("google/protobuf/unittest_features.proto",
-                 pb::TestFeatures::descriptor()->file()->DebugString());
-  CreateTempFile("foo.proto",
-                 R"schema(
-    edition = "2023";
-    import "google/protobuf/unittest_features.proto";
-    package foo;
-    option features.(pb.test).removed_feature = VALUE9;
-  )schema");
-
-  Run("protocol_compiler --test_out=$tmpdir "
-      "--proto_path=$tmpdir foo.proto");
-  ExpectWarningSubstring(
-      "foo.proto:4:5: warning: Feature pb.TestFeatures.removed_feature has "
-      "been deprecated in edition 2023: Custom feature deprecation warning\n");
-}
-
-TEST_F(CommandLineInterfaceTest, Plugin_TransitiveDeprecatedFeature) {
-  CreateTempFile("google/protobuf/descriptor.proto",
-                 google::protobuf::DescriptorProto::descriptor()->file()->DebugString());
-  CreateTempFile("google/protobuf/unittest_features.proto",
-                 pb::TestFeatures::descriptor()->file()->DebugString());
-  CreateTempFile("unused.proto",
-                 R"schema(
-    edition = "2023";
-    import "google/protobuf/unittest_features.proto";
-    package foo;
-    option features.(pb.test).removed_feature = VALUE9;
-    message Foo {}
-  )schema");
-  CreateTempFile("foo.proto",
-                 R"schema(
-    edition = "2023";
-    import "unused.proto";
-    package foo;
-    message Bar {
-      Foo foo = 1;
-    }
-  )schema");
-
-  Run("protocol_compiler --test_out=$tmpdir "
-      "--proto_path=$tmpdir foo.proto");
-  ExpectNoErrors();
-}
-
 TEST_F(CommandLineInterfaceTest, Plugin_FutureEdition) {
   CreateTempFile("foo.proto", R"schema(
     edition = "2023";
@@ -2097,7 +2048,7 @@ TEST_F(CommandLineInterfaceTest, EditionDefaultsWithExtension) {
   FeatureSetDefaults defaults = ReadEditionDefaults("defaults");
   EXPECT_EQ(defaults.minimum_edition(), EDITION_PROTO2);
   EXPECT_EQ(defaults.maximum_edition(), EDITION_99999_TEST_ONLY);
-  ASSERT_EQ(defaults.defaults_size(), 7);
+  ASSERT_EQ(defaults.defaults_size(), 6);
   EXPECT_EQ(defaults.defaults(0).edition(), EDITION_LEGACY);
   EXPECT_EQ(defaults.defaults(2).edition(), EDITION_2023);
   EXPECT_EQ(defaults.defaults(3).edition(), EDITION_2024);
@@ -2618,6 +2569,7 @@ TEST_F(CommandLineInterfaceTest, WriteDependencyManifestFileGivenTwoInputs) {
       "Can only process one input file when using --dependency_out=FILE.\n");
 }
 
+#ifdef PROTOBUF_OPENSOURCE
 TEST_F(CommandLineInterfaceTest, WriteDependencyManifestFile) {
   CreateTempFile("foo.proto",
                  "syntax = \"proto2\";\n"
@@ -2629,8 +2581,7 @@ TEST_F(CommandLineInterfaceTest, WriteDependencyManifestFile) {
                  "  optional Foo foo = 1;\n"
                  "}\n");
 
-  char current_dir[PATH_MAX];
-  ASSERT_EQ(getcwd(current_dir, sizeof(current_dir)), current_dir);
+  std::string current_working_directory = getcwd(nullptr, 0);
   SwitchToTempDirectory();
 
   Run("protocol_compiler --dependency_out=manifest --test_out=. "
@@ -2642,8 +2593,12 @@ TEST_F(CommandLineInterfaceTest, WriteDependencyManifestFile) {
                     "bar.proto.MockCodeGenerator.test_generator: "
                     "foo.proto\\\n bar.proto");
 
-  File::ChangeWorkingDirectory(current_dir);
+  File::ChangeWorkingDirectory(current_working_directory);
 }
+#else  // !PROTOBUF_OPENSOURCE
+// TODO: Figure out how to change and get working directory in
+// google3.
+#endif  // !PROTOBUF_OPENSOURCE
 
 TEST_F(CommandLineInterfaceTest, WriteDependencyManifestFileForAbsolutePath) {
   CreateTempFile("foo.proto",
@@ -2767,12 +2722,9 @@ TEST_F(CommandLineInterfaceTest, ParseErrorsMultipleFiles) {
       "--proto_path=$tmpdir foo.proto");
 
   ExpectErrorText(
-      "bar.proto:2:1: Expected top-level statement (e.g. \"message\").\n");
-  ExpectErrorText(
-      "baz.proto:2:1: Import \"bar.proto\" was not found or had errors.\n");
-  ExpectErrorText(
-      "foo.proto:2:1: Import \"bar.proto\" was not found or had errors.\n");
-  ExpectErrorText(
+      "bar.proto:2:1: Expected top-level statement (e.g. \"message\").\n"
+      "baz.proto:2:1: Import \"bar.proto\" was not found or had errors.\n"
+      "foo.proto:2:1: Import \"bar.proto\" was not found or had errors.\n"
       "foo.proto:3:1: Import \"baz.proto\" was not found or had errors.\n");
 }
 

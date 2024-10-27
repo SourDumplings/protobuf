@@ -241,7 +241,7 @@ class RepeatedEnum : public FieldGeneratorBase {
 
     if (has_cached_size_) {
       p->Emit(R"cc(
-        $pbi$::CachedSize $cached_size_name$;
+        mutable $pbi$::CachedSize $cached_size_name$;
       )cc");
     }
   }
@@ -283,7 +283,7 @@ class RepeatedEnum : public FieldGeneratorBase {
   void GenerateDestructorCode(io::Printer* p) const override {
     if (should_split()) {
       p->Emit(R"cc(
-        this_.$field_$.DeleteIfNotDefault();
+        $field_$.DeleteIfNotDefault();
       )cc");
     }
   }
@@ -518,38 +518,41 @@ void RepeatedEnum::GenerateSerializeWithCachedSizesToArray(
 }
 
 void RepeatedEnum::GenerateByteSize(io::Printer* p) const {
-  if (has_cached_size_) {
-    ABSL_CHECK(field_->is_packed());
-    p->Emit(R"cc(
-      total_size += ::_pbi::WireFormatLite::EnumSizeWithPackedTagSize(
-          this_._internal_$name$(), $kTagBytes$, this_.$cached_size_$);
-    )cc");
-    return;
-  }
   p->Emit(
       {
-          {"tag_size",
+          {"add_to_size",
            [&] {
-             if (field_->is_packed()) {
+             if (!field_->is_packed()) {
                p->Emit(R"cc(
-                 data_size == 0
-                     ? 0
-                     : $kTagBytes$ + ::_pbi::WireFormatLite::Int32Size(
-                                         static_cast<int32_t>(data_size));
+                 total_size += std::size_t{$kTagBytes$} * count;
                )cc");
-             } else {
+               return;
+             }
+
+             p->Emit(R"cc(
+               if (data_size > 0) {
+                 total_size += $kTagBytes$;
+                 total_size += ::_pbi::WireFormatLite::Int32Size(
+                     static_cast<int32_t>(data_size));
+               }
+             )cc");
+             if (has_cached_size_) {
                p->Emit(R"cc(
-                 std::size_t{$kTagBytes$} *
-                     ::_pbi::FromIntSize(this_._internal_$name$_size());
+                 this_.$cached_size_$.Set(::_pbi::ToCachedSize(data_size));
                )cc");
              }
            }},
       },
       R"cc(
-        std::size_t data_size =
-            ::_pbi::WireFormatLite::EnumSize(this_._internal_$name$());
-        std::size_t tag_size = $tag_size$;
-        total_size += data_size + tag_size;
+        std::size_t data_size = 0;
+        auto count = static_cast<std::size_t>(this_._internal_$name$_size());
+
+        for (std::size_t i = 0; i < count; ++i) {
+          data_size += ::_pbi::WireFormatLite::EnumSize(
+              this_._internal_$name$().Get(static_cast<int>(i)));
+        }
+        total_size += data_size;
+        $add_to_size$;
       )cc");
 }
 }  // namespace

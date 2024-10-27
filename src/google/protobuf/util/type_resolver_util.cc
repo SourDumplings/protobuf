@@ -10,7 +10,6 @@
 #include <string>
 #include <vector>
 
-#include "google/protobuf/any.pb.h"
 #include "google/protobuf/source_context.pb.h"
 #include "google/protobuf/type.pb.h"
 #include "google/protobuf/wrappers.pb.h"
@@ -198,11 +197,11 @@ std::string DefaultValueAsString(const FieldDescriptor& descriptor) {
       if (descriptor.type() == FieldDescriptor::TYPE_BYTES) {
         return absl::CEscape(descriptor.default_value_string());
       } else {
-        return std::string(descriptor.default_value_string());
+        return descriptor.default_value_string();
       }
       break;
     case FieldDescriptor::CPPTYPE_ENUM:
-      return std::string(descriptor.default_value_enum()->name());
+      return descriptor.default_value_enum()->name();
       break;
     case FieldDescriptor::CPPTYPE_MESSAGE:
       ABSL_DLOG(FATAL) << "Messages can't have default values!";

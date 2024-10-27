@@ -62,18 +62,16 @@ const TcParseTable<0> ImplicitWeakMessage::table_ =
     internal::CreateStubTcParseTable<ImplicitWeakMessage, ParseImpl>(
         class_data_.base());
 
-constexpr ClassDataLite<1> ImplicitWeakMessage::class_data_ = {
+constexpr MessageLite::ClassDataLite<1> ImplicitWeakMessage::class_data_ = {
     {
         &implicit_weak_message_default_instance.instance,
         &table_.header,
         nullptr,  // on_demand_register_arena_dtor
         nullptr,  // is_initialized (always true)
         MergeImpl,
-        internal::MessageCreator(NewImpl<ImplicitWeakMessage>,
-                                 sizeof(ImplicitWeakMessage),
-                                 alignof(ImplicitWeakMessage)),
-        &DestroyImpl,
-        GetClearImpl<ImplicitWeakMessage>(),
+        GetDeleteImpl<ImplicitWeakMessage>(),
+        GetNewImpl<ImplicitWeakMessage>(),
+        &ClearImpl,
         &ByteSizeLongImpl,
         &_InternalSerializeImpl,
         PROTOBUF_FIELD_OFFSET(ImplicitWeakMessage, cached_size_),
@@ -81,7 +79,7 @@ constexpr ClassDataLite<1> ImplicitWeakMessage::class_data_ = {
     },
     ""};
 
-const ClassData* ImplicitWeakMessage::GetClassData() const {
+const MessageLite::ClassData* ImplicitWeakMessage::GetClassData() const {
   return class_data_.base();
 }
 

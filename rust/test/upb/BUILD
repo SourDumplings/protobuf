@@ -19,8 +19,6 @@
 
 load("@rules_rust//rust:defs.bzl", "rust_test")
 
-package(default_applicable_licenses = ["//:license"])
-
 licenses(["notice"])
 
 # TODO: Enable this for the cpp kernel and move these tests to shared.
@@ -32,7 +30,7 @@ rust_test(
     },
     deps = [
         "//rust:protobuf_upb_export",
-        "//src/google/protobuf:unittest_proto3_upb_rust_proto",
+        "//rust/test:unittest_proto3_upb_rust_proto",
         "@crate_index//:googletest",
     ],
 )
@@ -45,8 +43,8 @@ rust_test(
     deps = [
         "//rust:protobuf_upb",
         "//rust/test:map_unittest_upb_rust_proto",
-        "//src/google/protobuf:edition_unittest_upb_rust_proto",
-        "//src/google/protobuf:unittest_upb_rust_proto",
+        "//rust/test:unittest_edition_upb_rust_proto",
+        "//rust/test:unittest_upb_rust_proto",
         "@crate_index//:googletest",
     ],
 )

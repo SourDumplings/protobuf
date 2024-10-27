@@ -11,15 +11,11 @@
 
 #include "google/protobuf/unknown_field_set.h"
 
-#include <cstring>
-#include <string>
-#include <utility>
-
 #include "absl/log/absl_check.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/internal/resize_uninitialized.h"
-#include "absl/strings/string_view.h"
 #include "google/protobuf/extension_set.h"
+#include "google/protobuf/generated_message_tctable_decl.h"
 #include "google/protobuf/generated_message_tctable_impl.h"
 #include "google/protobuf/io/coded_stream.h"
 #include "google/protobuf/io/zero_copy_stream.h"
@@ -29,29 +25,45 @@
 #include "google/protobuf/wire_format.h"
 #include "google/protobuf/wire_format_lite.h"
 
+
 // Must be included last.
 #include "google/protobuf/port_def.inc"
 
 namespace google {
 namespace protobuf {
 
+const UnknownFieldSet& UnknownFieldSet::default_instance() {
+  static auto instance = internal::OnShutdownDelete(new UnknownFieldSet());
+  return *instance;
+}
+
 void UnknownFieldSet::ClearFallback() {
   ABSL_DCHECK(!fields_.empty());
-  if (arena() == nullptr) {
-    int n = fields_.size();
-    do {
-      (fields_)[--n].Delete();
-    } while (n > 0);
+  int n = fields_.size();
+  do {
+    (fields_)[--n].Delete();
+  } while (n > 0);
+  fields_.clear();
+}
+
+void UnknownFieldSet::InternalMergeFrom(const UnknownFieldSet& other) {
+  int other_field_count = other.field_count();
+  if (other_field_count > 0) {
+    fields_.reserve(fields_.size() + other_field_count);
+    for (int i = 0; i < other_field_count; i++) {
+      fields_.push_back((other.fields_)[i]);
+      fields_.back().DeepCopy((other.fields_)[i]);
+    }
   }
-  fields_.Clear();
 }
 
 void UnknownFieldSet::MergeFrom(const UnknownFieldSet& other) {
   int other_field_count = other.field_count();
   if (other_field_count > 0) {
-    fields_.Reserve(fields_.size() + other_field_count);
-    for (auto elem : other.fields_) {
-      fields_.Add(elem.DeepCopy(arena()));
+    fields_.reserve(fields_.size() + other_field_count);
+    for (int i = 0; i < other_field_count; i++) {
+      fields_.push_back((other.fields_)[i]);
+      fields_.back().DeepCopy((other.fields_)[i]);
     }
   }
 }
@@ -59,14 +71,14 @@ void UnknownFieldSet::MergeFrom(const UnknownFieldSet& other) {
 // A specialized MergeFrom for performance when we are merging from an UFS that
 // is temporary and can be destroyed in the process.
 void UnknownFieldSet::MergeFromAndDestroy(UnknownFieldSet* other) {
-  if (arena() != other->arena()) {
-    MergeFrom(*other);
-  } else if (fields_.empty()) {
-    fields_.Swap(&other->fields_);
+  if (fields_.empty()) {
+    fields_ = std::move(other->fields_);
   } else {
-    fields_.MergeFrom(other->fields_);
-    other->fields_.Clear();
+    fields_.insert(fields_.end(),
+                   std::make_move_iterator(other->fields_.begin()),
+                   std::make_move_iterator(other->fields_.end()));
   }
+  other->fields_.clear();
 }
 
 void UnknownFieldSet::MergeToInternalMetadata(
@@ -77,14 +89,14 @@ void UnknownFieldSet::MergeToInternalMetadata(
 size_t UnknownFieldSet::SpaceUsedExcludingSelfLong() const {
   if (fields_.empty()) return 0;
 
-  size_t total_size = fields_.SpaceUsedExcludingSelfLong();
+  size_t total_size = sizeof(UnknownField) * fields_.capacity();
 
   for (const UnknownField& field : fields_) {
     switch (field.type()) {
       case UnknownField::TYPE_LENGTH_DELIMITED:
-        total_size += sizeof(*field.data_.string_value) +
+        total_size += sizeof(*field.data_.length_delimited_.string_value) +
                       internal::StringSpaceUsedExcludingSelfLong(
-                          *field.data_.string_value);
+                          *field.data_.length_delimited_.string_value);
         break;
       case UnknownField::TYPE_GROUP:
         total_size += field.data_.group_->SpaceUsedLong();
@@ -101,68 +113,66 @@ size_t UnknownFieldSet::SpaceUsedLong() const {
 }
 
 void UnknownFieldSet::AddVarint(int number, uint64_t value) {
-  auto& field = *fields_.Add();
+  fields_.emplace_back();
+  auto& field = fields_.back();
   field.number_ = number;
   field.SetType(UnknownField::TYPE_VARINT);
   field.data_.varint_ = value;
 }
 
 void UnknownFieldSet::AddFixed32(int number, uint32_t value) {
-  auto& field = *fields_.Add();
+  fields_.emplace_back();
+  auto& field = fields_.back();
   field.number_ = number;
   field.SetType(UnknownField::TYPE_FIXED32);
   field.data_.fixed32_ = value;
 }
 
 void UnknownFieldSet::AddFixed64(int number, uint64_t value) {
-  auto& field = *fields_.Add();
+  fields_.emplace_back();
+  auto& field = fields_.back();
   field.number_ = number;
   field.SetType(UnknownField::TYPE_FIXED64);
   field.data_.fixed64_ = value;
 }
 
-void UnknownFieldSet::AddLengthDelimited(int number, const absl::Cord& value) {
-  absl::CopyCordToString(value, AddLengthDelimited(number));
-}
-
-template <int&...>
-void UnknownFieldSet::AddLengthDelimited(int number, std::string&& value) {
-  auto& field = *fields_.Add();
-  field.number_ = number;
-  field.SetType(UnknownField::TYPE_LENGTH_DELIMITED);
-  field.data_.string_value =
-      Arena::Create<std::string>(arena(), std::move(value));
-}
-template void UnknownFieldSet::AddLengthDelimited(int, std::string&&);
-
 std::string* UnknownFieldSet::AddLengthDelimited(int number) {
-  auto& field = *fields_.Add();
+  fields_.emplace_back();
+  auto& field = fields_.back();
   field.number_ = number;
   field.SetType(UnknownField::TYPE_LENGTH_DELIMITED);
-  field.data_.string_value = Arena::Create<std::string>(arena());
-  return field.data_.string_value;
+  field.data_.length_delimited_.string_value = new std::string;
+  return field.data_.length_delimited_.string_value;
 }
+
 
 UnknownFieldSet* UnknownFieldSet::AddGroup(int number) {
-  auto& field = *fields_.Add();
+  fields_.emplace_back();
+  auto& field = fields_.back();
   field.number_ = number;
   field.SetType(UnknownField::TYPE_GROUP);
-  field.data_.group_ = Arena::Create<UnknownFieldSet>(arena());
+  field.data_.group_ = new UnknownFieldSet;
   return field.data_.group_;
 }
 
 void UnknownFieldSet::AddField(const UnknownField& field) {
-  fields_.Add(field.DeepCopy(arena()));
+  fields_.push_back(field);
+  fields_.back().DeepCopy(field);
 }
 
 void UnknownFieldSet::DeleteSubrange(int start, int num) {
-  if (arena() == nullptr) {
-    // Delete the specified fields.
-    for (int i = 0; i < num; ++i) {
-      (fields_)[i + start].Delete();
-    }
+  // Delete the specified fields.
+  for (int i = 0; i < num; ++i) {
+    (fields_)[i + start].Delete();
   }
-  fields_.ExtractSubrange(start, num, nullptr);
+  // Slide down the remaining fields.
+  for (size_t i = start + num; i < fields_.size(); ++i) {
+    (fields_)[i - num] = (fields_)[i];
+  }
+  // Pop off the # of deleted fields.
+  for (int i = 0; i < num; ++i) {
+    fields_.pop_back();
+  }
 }
 
 void UnknownFieldSet::DeleteByNumber(int number) {
@@ -170,9 +180,7 @@ void UnknownFieldSet::DeleteByNumber(int number) {
   for (size_t i = 0; i < fields_.size(); ++i) {
     UnknownField* field = &(fields_)[i];
     if (field->number() == number) {
-      if (arena() == nullptr) {
-        field->Delete();
-      }
+      field->Delete();
     } else {
       if (i != left) {
         (fields_)[left] = (fields_)[i];
@@ -180,7 +188,7 @@ void UnknownFieldSet::DeleteByNumber(int number) {
       ++left;
     }
   }
-  fields_.Truncate(left);
+  fields_.resize(left);
 }
 
 bool UnknownFieldSet::MergeFromCodedStream(io::CodedInputStream* input) {
@@ -240,7 +248,7 @@ bool UnknownFieldSet::SerializeToCord(absl::Cord* output) const {
 void UnknownField::Delete() {
   switch (type()) {
     case UnknownField::TYPE_LENGTH_DELIMITED:
-      delete data_.string_value;
+      delete data_.length_delimited_.string_value;
       break;
     case UnknownField::TYPE_GROUP:
       delete data_.group_;
@@ -250,38 +258,29 @@ void UnknownField::Delete() {
   }
 }
 
-UnknownField UnknownField::DeepCopy(Arena* arena) const {
-  UnknownField copy = *this;
+void UnknownField::DeepCopy(const UnknownField& other) {
+  (void)other;  // Parameter is used by Google-internal code.
   switch (type()) {
     case UnknownField::TYPE_LENGTH_DELIMITED:
-      copy.data_.string_value =
-          Arena::Create<std::string>(arena, *data_.string_value);
+      data_.length_delimited_.string_value =
+          new std::string(*data_.length_delimited_.string_value);
       break;
     case UnknownField::TYPE_GROUP: {
-      UnknownFieldSet* group = Arena::Create<UnknownFieldSet>(arena);
-      group->MergeFrom(*data_.group_);
-      copy.data_.group_ = group;
+      UnknownFieldSet* group = new UnknownFieldSet();
+      group->InternalMergeFrom(*data_.group_);
+      data_.group_ = group;
       break;
     }
     default:
       break;
   }
-  return copy;
 }
 
-void UnknownFieldSet::SwapSlow(UnknownFieldSet* other) {
-  UnknownFieldSet tmp;
-  tmp.MergeFrom(*this);
-  this->Clear();
-  this->MergeFrom(*other);
-  other->Clear();
-  other->MergeFrom(tmp);
-}
 
 uint8_t* UnknownField::InternalSerializeLengthDelimitedNoTag(
     uint8_t* target, io::EpsCopyOutputStream* stream) const {
   ABSL_DCHECK_EQ(TYPE_LENGTH_DELIMITED, type());
-  const absl::string_view data = *data_.string_value;
+  const std::string& data = *data_.length_delimited_.string_value;
   target = io::CodedOutputStream::WriteVarint32ToArray(data.size(), target);
   target = stream->WriteRaw(data.data(), data.size(), target);
   return target;

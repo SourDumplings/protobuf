@@ -57,6 +57,7 @@ class ImmutablePrimitiveFieldLiteGenerator
   void GenerateInitializationCode(io::Printer* printer) const override;
   void GenerateFieldInfo(io::Printer* printer,
                          std::vector<uint16_t>* output) const override;
+  void GenerateKotlinDslMembers(io::Printer* printer) const override;
 
   std::string GetBoxedType() const override;
 
@@ -106,6 +107,7 @@ class RepeatedImmutablePrimitiveFieldLiteGenerator
   void GenerateInitializationCode(io::Printer* printer) const override;
   void GenerateFieldInfo(io::Printer* printer,
                          std::vector<uint16_t>* output) const override;
+  void GenerateKotlinDslMembers(io::Printer* printer) const override;
 
   std::string GetBoxedType() const override;
 

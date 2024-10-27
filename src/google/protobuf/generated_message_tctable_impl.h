@@ -13,11 +13,10 @@
 #include <cstdlib>
 #include <string>
 #include <type_traits>
+#include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/log/absl_log.h"
-#include "absl/strings/cord.h"
-#include "absl/strings/string_view.h"
 #include "google/protobuf/extension_set.h"
 #include "google/protobuf/generated_message_tctable_decl.h"
 #include "google/protobuf/map.h"
@@ -28,7 +27,6 @@
 #include "google/protobuf/raw_ptr.h"
 #include "google/protobuf/repeated_field.h"
 #include "google/protobuf/repeated_ptr_field.h"
-#include "google/protobuf/serial_arena.h"
 #include "google/protobuf/wire_format_lite.h"
 
 // Must come last:
@@ -822,8 +820,10 @@ class PROTOBUF_EXPORT TcParser final {
     };
   }
 
-  static void VerifyHasBitConsistency(const MessageLite* msg,
-                                      const TcParseTableBase* table);
+  template <typename T>
+  static void CreateInArenaStorageCb(Arena* arena, void* p) {
+    Arena::CreateInArenaStorage(static_cast<T*>(p), arena);
+  }
 
  private:
   // Optimized small tag varint parser for int32/int64
@@ -1030,8 +1030,6 @@ class PROTOBUF_EXPORT TcParser final {
   static absl::string_view MessageName(const TcParseTableBase* table);
   static absl::string_view FieldName(const TcParseTableBase* table,
                                      const TcParseTableBase::FieldEntry*);
-  static int FieldNumber(const TcParseTableBase* table,
-                         const TcParseTableBase::FieldEntry*);
   static bool ChangeOneof(const TcParseTableBase* table,
                           const TcParseTableBase::FieldEntry& entry,
                           uint32_t field_num, ParseContext* ctx,
@@ -1156,9 +1154,6 @@ inline PROTOBUF_ALWAYS_INLINE const char* TcParser::ParseLoop(
   table -= 1;
   if (ABSL_PREDICT_FALSE(table->has_post_loop_handler)) {
     return table->post_loop_handler(msg, ptr, ctx);
-  }
-  if (ABSL_PREDICT_FALSE(PerformDebugChecks() && ptr == nullptr)) {
-    VerifyHasBitConsistency(msg, table);
   }
   return ptr;
 }

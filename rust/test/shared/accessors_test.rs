@@ -8,8 +8,6 @@
 //! Tests covering accessors for singular bool, int32, int64, and bytes fields.
 
 use googletest::prelude::*;
-use protobuf::prelude::*;
-
 use protobuf::{Optional, ProtoBytes, ProtoStr, ProtoString};
 use std::borrow::Cow;
 use std::ffi::OsString;
@@ -17,7 +15,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use unittest_rust_proto::{test_all_types, TestAllTypes};
 
-#[gtest]
+#[test]
 fn test_default_accessors() {
     let msg: TestAllTypes = Default::default();
     assert_that!(
@@ -42,7 +40,7 @@ fn test_default_accessors() {
     assert_that!(msg.default_bytes(), eq("world".as_bytes()));
 }
 
-#[gtest]
+#[test]
 fn test_optional_fixed32_accessors() {
     let mut msg = TestAllTypes::new();
     assert_that!(msg.has_optional_fixed32(), eq(false));
@@ -60,7 +58,7 @@ fn test_optional_fixed32_accessors() {
     assert_that!(msg.optional_fixed32(), eq(0));
 }
 
-#[gtest]
+#[test]
 fn test_default_fixed32_accessors() {
     let mut msg = TestAllTypes::new();
     assert_that!(msg.default_fixed32(), eq(47));
@@ -78,7 +76,7 @@ fn test_default_fixed32_accessors() {
     assert_that!(msg.default_fixed32_opt(), eq(Optional::Unset(47)));
 }
 
-#[gtest]
+#[test]
 fn test_optional_fixed64_accessors() {
     let mut msg = TestAllTypes::new();
     assert_that!(msg.optional_fixed64_opt(), eq(Optional::Unset(0)));
@@ -97,7 +95,7 @@ fn test_optional_fixed64_accessors() {
     assert_that!(msg.optional_fixed64(), eq(0));
 }
 
-#[gtest]
+#[test]
 fn test_default_fixed64_accessors() {
     let mut msg = TestAllTypes::new();
     assert_that!(msg.default_fixed64(), eq(48));
@@ -116,7 +114,7 @@ fn test_default_fixed64_accessors() {
     assert_that!(msg.default_fixed64_opt(), eq(Optional::Unset(48)));
 }
 
-#[gtest]
+#[test]
 fn test_optional_int32_accessors() {
     let mut msg = TestAllTypes::new();
     assert_that!(msg.optional_int32_opt(), eq(Optional::Unset(0)));
@@ -135,7 +133,7 @@ fn test_optional_int32_accessors() {
     assert_that!(msg.optional_int32(), eq(0));
 }
 
-#[gtest]
+#[test]
 fn test_default_int32_accessors() {
     let mut msg = TestAllTypes::new();
     assert_that!(msg.default_int32(), eq(41));
@@ -158,7 +156,7 @@ fn test_default_int32_accessors() {
     assert_that!(msg.default_int32_opt(), eq(Optional::Unset(41)));
 }
 
-#[gtest]
+#[test]
 fn test_optional_int64_accessors() {
     let mut msg = TestAllTypes::new();
     assert_that!(msg.optional_int64_opt(), eq(Optional::Unset(0)));
@@ -173,7 +171,7 @@ fn test_optional_int64_accessors() {
     assert_that!(msg.optional_int64(), eq(0));
 }
 
-#[gtest]
+#[test]
 fn test_default_int64_accessors() {
     let mut msg = TestAllTypes::new();
     assert_that!(msg.default_int64(), eq(42));
@@ -188,7 +186,7 @@ fn test_default_int64_accessors() {
     assert_that!(msg.default_int64_opt(), eq(Optional::Unset(42)));
 }
 
-#[gtest]
+#[test]
 fn test_optional_sint32_accessors() {
     let mut msg = TestAllTypes::new();
     assert_that!(msg.optional_sint32_opt(), eq(Optional::Unset(0)));
@@ -203,7 +201,7 @@ fn test_optional_sint32_accessors() {
     assert_that!(msg.optional_sint32(), eq(0));
 }
 
-#[gtest]
+#[test]
 fn test_default_sint32_accessors() {
     let mut msg = TestAllTypes::new();
     assert_that!(msg.default_sint32(), eq(-45));
@@ -218,7 +216,7 @@ fn test_default_sint32_accessors() {
     assert_that!(msg.default_sint32_opt(), eq(Optional::Unset(-45)));
 }
 
-#[gtest]
+#[test]
 fn test_optional_sint64_accessors() {
     let mut msg = TestAllTypes::new();
     assert_that!(msg.optional_sint64_opt(), eq(Optional::Unset(0)));
@@ -233,7 +231,7 @@ fn test_optional_sint64_accessors() {
     assert_that!(msg.optional_sint64(), eq(0));
 }
 
-#[gtest]
+#[test]
 fn test_default_sint64_accessors() {
     let mut msg = TestAllTypes::new();
     assert_that!(msg.default_sint64(), eq(46));
@@ -248,7 +246,7 @@ fn test_default_sint64_accessors() {
     assert_that!(msg.default_sint64_opt(), eq(Optional::Unset(46)));
 }
 
-#[gtest]
+#[test]
 fn test_optional_uint32_accessors() {
     let mut msg = TestAllTypes::new();
     assert_that!(msg.optional_uint32_opt(), eq(Optional::Unset(0)));
@@ -263,7 +261,7 @@ fn test_optional_uint32_accessors() {
     assert_that!(msg.optional_uint32(), eq(0));
 }
 
-#[gtest]
+#[test]
 fn test_default_uint32_accessors() {
     let mut msg = TestAllTypes::new();
     assert_that!(msg.default_uint32(), eq(43));
@@ -278,7 +276,7 @@ fn test_default_uint32_accessors() {
     assert_that!(msg.default_uint32_opt(), eq(Optional::Unset(43)));
 }
 
-#[gtest]
+#[test]
 fn test_optional_uint64_accessors() {
     let mut msg = TestAllTypes::new();
     assert_that!(msg.optional_uint64_opt(), eq(Optional::Unset(0)));
@@ -293,7 +291,7 @@ fn test_optional_uint64_accessors() {
     assert_that!(msg.optional_uint64(), eq(0));
 }
 
-#[gtest]
+#[test]
 fn test_default_uint64_accessors() {
     let mut msg = TestAllTypes::new();
     assert_that!(msg.default_uint64(), eq(44));
@@ -308,7 +306,7 @@ fn test_default_uint64_accessors() {
     assert_that!(msg.default_uint64_opt(), eq(Optional::Unset(44)));
 }
 
-#[gtest]
+#[test]
 fn test_optional_float_accessors() {
     let mut msg = TestAllTypes::new();
     assert_that!(msg.optional_float_opt(), eq(Optional::Unset(0.0)));
@@ -323,7 +321,7 @@ fn test_optional_float_accessors() {
     assert_that!(msg.optional_float(), eq(0.0));
 }
 
-#[gtest]
+#[test]
 fn test_default_float_accessors() {
     let mut msg = TestAllTypes::new();
     assert_that!(msg.default_float(), eq(51.5));
@@ -338,7 +336,7 @@ fn test_default_float_accessors() {
     assert_that!(msg.default_float_opt(), eq(Optional::Unset(51.5)));
 }
 
-#[gtest]
+#[test]
 fn test_optional_double_accessors() {
     let mut msg = TestAllTypes::new();
     assert_that!(msg.optional_double_opt(), eq(Optional::Unset(0.0)));
@@ -353,7 +351,7 @@ fn test_optional_double_accessors() {
     assert_that!(msg.optional_double(), eq(0.0));
 }
 
-#[gtest]
+#[test]
 fn test_default_double_accessors() {
     let mut msg = TestAllTypes::new();
     assert_that!(msg.default_double(), eq(52e3));
@@ -368,7 +366,7 @@ fn test_default_double_accessors() {
     assert_that!(msg.default_double_opt(), eq(Optional::Unset(52e3)));
 }
 
-#[gtest]
+#[test]
 fn test_optional_bool_accessors() {
     let mut msg = TestAllTypes::new();
     assert_that!(msg.optional_bool_opt(), eq(Optional::Unset(false)));
@@ -380,7 +378,7 @@ fn test_optional_bool_accessors() {
     assert_that!(msg.optional_bool_opt(), eq(Optional::Unset(false)));
 }
 
-#[gtest]
+#[test]
 fn test_default_bool_accessors() {
     let mut msg = TestAllTypes::new();
     assert_that!(msg.default_bool(), eq(true));
@@ -395,7 +393,7 @@ fn test_default_bool_accessors() {
     assert_that!(msg.default_bool_opt(), eq(Optional::Unset(true)));
 }
 
-#[gtest]
+#[test]
 fn test_optional_bytes_accessors() {
     let mut msg = TestAllTypes::new();
     assert_that!(*msg.optional_bytes(), empty());
@@ -421,7 +419,7 @@ fn test_optional_bytes_accessors() {
     assert_that!(msg.optional_bytes_opt(), eq(Optional::Set(&b""[..])));
 }
 
-#[gtest]
+#[test]
 fn test_into_proxied_for_bytes() {
     let mut msg = TestAllTypes::new();
 
@@ -463,7 +461,7 @@ fn test_into_proxied_for_bytes() {
     assert_that!(msg.optional_bytes(), eq(b"ninth"));
 }
 
-#[gtest]
+#[test]
 fn test_nonempty_default_bytes_accessors() {
     let mut msg = TestAllTypes::new();
     assert_that!(msg.default_bytes(), eq(b"world"));
@@ -492,7 +490,7 @@ fn test_nonempty_default_bytes_accessors() {
     assert_that!(msg.default_bytes_opt(), eq(Optional::Unset(&b"world"[..])));
 }
 
-#[gtest]
+#[test]
 fn test_optional_string_accessors() {
     let mut msg = TestAllTypes::new();
     assert_that!(msg.optional_string(), eq(""));
@@ -518,7 +516,7 @@ fn test_optional_string_accessors() {
     assert_that!(msg.optional_string_opt(), eq(Optional::Unset("".into())));
 }
 
-#[gtest]
+#[test]
 fn test_into_proxied_for_string() {
     let mut msg = TestAllTypes::new();
 
@@ -567,7 +565,7 @@ fn test_into_proxied_for_string() {
     assert_that!(msg.optional_string(), eq("eleventh"));
 }
 
-#[gtest]
+#[test]
 fn test_nonempty_default_string_accessors() {
     let mut msg = TestAllTypes::new();
     assert_that!(msg.default_string(), eq("hello"));
@@ -593,7 +591,7 @@ fn test_nonempty_default_string_accessors() {
     assert_that!(msg.default_string_opt(), eq(Optional::Unset("hello".into())));
 }
 
-#[gtest]
+#[test]
 fn test_singular_msg_field() {
     let mut msg = TestAllTypes::new();
     let msg_view = msg.optional_nested_message();
@@ -608,16 +606,18 @@ fn test_singular_msg_field() {
     assert_that!(msg.has_optional_nested_message(), eq(true));
 }
 
-#[gtest]
+#[test]
 fn test_message_opt() {
     let msg = TestAllTypes::new();
-    let opt: Optional<unittest_rust_proto::test_all_types::NestedMessageView<'_>> =
-        msg.optional_nested_message_opt();
+    let opt: Optional<
+        unittest_rust_proto::test_all_types::NestedMessageView<'_>,
+        unittest_rust_proto::test_all_types::NestedMessageView<'_>,
+    > = msg.optional_nested_message_opt();
     assert_that!(opt.is_set(), eq(false));
     assert_that!(opt.into_inner().bb(), eq(0));
 }
 
-#[gtest]
+#[test]
 fn test_message_opt_set() {
     let mut msg = TestAllTypes::new();
     let submsg = test_all_types::NestedMessage::new();
@@ -626,7 +626,7 @@ fn test_message_opt_set() {
     assert_that!(msg.optional_nested_message_opt().is_set(), eq(false));
 }
 
-#[gtest]
+#[test]
 fn test_setting_submsg() {
     let mut msg = TestAllTypes::new();
     let submsg = test_all_types::NestedMessage::new();
@@ -644,7 +644,7 @@ fn test_setting_submsg() {
     assert_that!(msg.optional_nested_message_opt().is_set(), eq(false));
 }
 
-#[gtest]
+#[test]
 fn test_msg_mut_initializes() {
     let mut msg = TestAllTypes::new();
     assert_that!(msg.has_optional_nested_message(), eq(false));
@@ -660,7 +660,7 @@ fn test_msg_mut_initializes() {
     assert_that!(msg.optional_nested_message_opt().is_set(), eq(false));
 }
 
-#[gtest]
+#[test]
 fn test_optional_nested_enum_accessors() {
     use test_all_types::NestedEnum;
 
@@ -680,7 +680,7 @@ fn test_optional_nested_enum_accessors() {
     assert_that!(msg.optional_nested_enum(), eq(NestedEnum::Foo));
 }
 
-#[gtest]
+#[test]
 fn test_default_nested_enum_accessors() {
     use test_all_types::NestedEnum;
 
@@ -697,7 +697,7 @@ fn test_default_nested_enum_accessors() {
     assert_that!(msg.default_nested_enum_opt(), eq(Optional::Unset(NestedEnum::Bar)));
 }
 
-#[gtest]
+#[test]
 fn test_optional_foreign_enum_accessors() {
     use unittest_rust_proto::ForeignEnum;
 
@@ -714,7 +714,7 @@ fn test_optional_foreign_enum_accessors() {
     assert_that!(msg.optional_foreign_enum(), eq(ForeignEnum::ForeignFoo));
 }
 
-#[gtest]
+#[test]
 fn test_default_foreign_enum_accessors() {
     use unittest_rust_proto::ForeignEnum;
 
@@ -731,7 +731,7 @@ fn test_default_foreign_enum_accessors() {
     assert_that!(msg.default_foreign_enum_opt(), eq(Optional::Unset(ForeignEnum::ForeignBar)));
 }
 
-#[gtest]
+#[test]
 fn test_optional_import_enum_accessors() {
     use unittest_rust_proto::ImportEnum;
 
@@ -748,7 +748,7 @@ fn test_optional_import_enum_accessors() {
     assert_that!(msg.optional_import_enum(), eq(ImportEnum::ImportFoo));
 }
 
-#[gtest]
+#[test]
 fn test_default_import_enum_accessors() {
     use unittest_rust_proto::ImportEnum;
 
@@ -765,7 +765,7 @@ fn test_default_import_enum_accessors() {
     assert_that!(msg.default_import_enum_opt(), eq(Optional::Unset(ImportEnum::ImportBar)));
 }
 
-#[gtest]
+#[test]
 fn test_oneof_accessors() {
     use unittest_rust_proto::test_oneof2::{Foo::*, FooCase, NestedEnum};
     use unittest_rust_proto::TestOneof2;
@@ -816,7 +816,7 @@ fn test_oneof_accessors() {
     // TODO: Add tests covering a message-type field in a oneof.
 }
 
-#[gtest]
+#[test]
 fn test_msg_oneof_default_accessors() {
     use unittest_rust_proto::test_oneof2::{Bar::*, BarCase, NestedEnum};
 
@@ -848,7 +848,7 @@ fn test_msg_oneof_default_accessors() {
     // TODO: Add tests covering a message-type field in a oneof.
 }
 
-#[gtest]
+#[test]
 fn test_group() {
     let mut m = TestAllTypes::new();
 
@@ -861,7 +861,7 @@ fn test_group() {
     assert_that!(m.optionalgroup().a(), eq(7));
 }
 
-#[gtest]
+#[test]
 fn test_submsg_setter() {
     use test_all_types::*;
 
@@ -874,7 +874,7 @@ fn test_submsg_setter() {
     assert_that!(parent.optional_nested_message().bb(), eq(7));
 }
 
-#[gtest]
+#[test]
 fn test_clone() {
     let mut m = TestAllTypes::new();
     m.set_optional_int32(42);
@@ -886,7 +886,7 @@ fn test_clone() {
     assert_that!(clone.optional_int32(), eq(42));
 }
 
-#[gtest]
+#[test]
 fn test_to_owned() {
     let mut m = TestAllTypes::new();
     m.set_optional_int32(42);
@@ -910,7 +910,7 @@ fn test_to_owned() {
     assert_that!(submsg_mut.bb(), eq(8));
 }
 
-#[gtest]
+#[test]
 fn test_ctype_stringpiece() {
     let mut msg = TestAllTypes::new();
     assert_that!(msg.optional_string_piece(), eq(""));
@@ -918,30 +918,4 @@ fn test_ctype_stringpiece() {
     msg.set_optional_string_piece("hello");
     assert_that!(msg.optional_string_piece(), eq("hello"));
     assert_that!(msg.has_optional_string_piece(), eq(true));
-}
-
-#[gtest]
-fn test_msg_clear() {
-    let mut m = TestAllTypes::new();
-    m.set_optional_int32(42);
-    assert_that!(m.has_optional_int32(), eq(true));
-    m.clear();
-    assert_that!(m.has_optional_int32(), eq(false));
-}
-
-#[gtest]
-fn test_submsg_clear() {
-    let mut m = TestAllTypes::new();
-    let mut sub = m.optional_nested_message_mut();
-    sub.set_bb(7);
-
-    assert_that!(m.has_optional_nested_message(), eq(true));
-    assert_that!(m.optional_nested_message().bb(), eq(7));
-
-    m.optional_nested_message_mut().clear();
-
-    // .clear() on the submsg doesn't affect its presence on the parent:
-    assert_that!(m.has_optional_nested_message(), eq(true));
-    // ...but it does clear the submsg's value:
-    assert_that!(m.optional_nested_message().bb(), eq(0));
 }

@@ -17,13 +17,10 @@
 #ifndef GOOGLE_PROTOBUF_WIRE_FORMAT_LITE_H__
 #define GOOGLE_PROTOBUF_WIRE_FORMAT_LITE_H__
 
-#include <algorithm>
-#include <cstddef>
-#include <cstdint>
 #include <limits>
 #include <string>
-#include <utility>
 
+#include "google/protobuf/stubs/common.h"
 #include "absl/base/casts.h"
 #include "absl/log/absl_check.h"
 #include "absl/strings/string_view.h"
@@ -318,7 +315,7 @@ class PROTOBUF_EXPORT WireFormatLite {
 
   // Returns true if the data is valid UTF-8.
   static bool VerifyUtf8String(const char* data, int size, Operation op,
-                               absl::string_view field_name);
+                               const char* field_name);
 
   template <typename MessageType>
   static inline bool ReadGroup(int field_number, io::CodedInputStream* input,
@@ -496,33 +493,33 @@ class PROTOBUF_EXPORT WireFormatLite {
       uint8_t* target);
 
   PROTOBUF_NDEBUG_INLINE static uint8_t* WriteInt32NoTagToArray(
-      const RepeatedField<int32_t>& value, uint8_t* target);
+      const RepeatedField<int32_t>& value, uint8_t* output);
   PROTOBUF_NDEBUG_INLINE static uint8_t* WriteInt64NoTagToArray(
-      const RepeatedField<int64_t>& value, uint8_t* target);
+      const RepeatedField<int64_t>& value, uint8_t* output);
   PROTOBUF_NDEBUG_INLINE static uint8_t* WriteUInt32NoTagToArray(
-      const RepeatedField<uint32_t>& value, uint8_t* target);
+      const RepeatedField<uint32_t>& value, uint8_t* output);
   PROTOBUF_NDEBUG_INLINE static uint8_t* WriteUInt64NoTagToArray(
-      const RepeatedField<uint64_t>& value, uint8_t* target);
+      const RepeatedField<uint64_t>& value, uint8_t* output);
   PROTOBUF_NDEBUG_INLINE static uint8_t* WriteSInt32NoTagToArray(
-      const RepeatedField<int32_t>& value, uint8_t* target);
+      const RepeatedField<int32_t>& value, uint8_t* output);
   PROTOBUF_NDEBUG_INLINE static uint8_t* WriteSInt64NoTagToArray(
-      const RepeatedField<int64_t>& value, uint8_t* target);
+      const RepeatedField<int64_t>& value, uint8_t* output);
   PROTOBUF_NDEBUG_INLINE static uint8_t* WriteFixed32NoTagToArray(
-      const RepeatedField<uint32_t>& value, uint8_t* target);
+      const RepeatedField<uint32_t>& value, uint8_t* output);
   PROTOBUF_NDEBUG_INLINE static uint8_t* WriteFixed64NoTagToArray(
-      const RepeatedField<uint64_t>& value, uint8_t* target);
+      const RepeatedField<uint64_t>& value, uint8_t* output);
   PROTOBUF_NDEBUG_INLINE static uint8_t* WriteSFixed32NoTagToArray(
-      const RepeatedField<int32_t>& value, uint8_t* target);
+      const RepeatedField<int32_t>& value, uint8_t* output);
   PROTOBUF_NDEBUG_INLINE static uint8_t* WriteSFixed64NoTagToArray(
-      const RepeatedField<int64_t>& value, uint8_t* target);
+      const RepeatedField<int64_t>& value, uint8_t* output);
   PROTOBUF_NDEBUG_INLINE static uint8_t* WriteFloatNoTagToArray(
-      const RepeatedField<float>& value, uint8_t* target);
+      const RepeatedField<float>& value, uint8_t* output);
   PROTOBUF_NDEBUG_INLINE static uint8_t* WriteDoubleNoTagToArray(
-      const RepeatedField<double>& value, uint8_t* target);
+      const RepeatedField<double>& value, uint8_t* output);
   PROTOBUF_NDEBUG_INLINE static uint8_t* WriteBoolNoTagToArray(
-      const RepeatedField<bool>& value, uint8_t* target);
+      const RepeatedField<bool>& value, uint8_t* output);
   PROTOBUF_NDEBUG_INLINE static uint8_t* WriteEnumNoTagToArray(
-      const RepeatedField<int>& value, uint8_t* target);
+      const RepeatedField<int>& value, uint8_t* output);
 
   // Write fields, including tags.
   template <int field_number>
@@ -597,33 +594,33 @@ class PROTOBUF_EXPORT WireFormatLite {
       uint8_t* (*Writer)(int, T, uint8_t*), uint8_t* target);
 
   PROTOBUF_NDEBUG_INLINE static uint8_t* WriteInt32ToArray(
-      int field_number, const RepeatedField<int32_t>& value, uint8_t* target);
+      int field_number, const RepeatedField<int32_t>& value, uint8_t* output);
   PROTOBUF_NDEBUG_INLINE static uint8_t* WriteInt64ToArray(
-      int field_number, const RepeatedField<int64_t>& value, uint8_t* target);
+      int field_number, const RepeatedField<int64_t>& value, uint8_t* output);
   PROTOBUF_NDEBUG_INLINE static uint8_t* WriteUInt32ToArray(
-      int field_number, const RepeatedField<uint32_t>& value, uint8_t* target);
+      int field_number, const RepeatedField<uint32_t>& value, uint8_t* output);
   PROTOBUF_NDEBUG_INLINE static uint8_t* WriteUInt64ToArray(
-      int field_number, const RepeatedField<uint64_t>& value, uint8_t* target);
+      int field_number, const RepeatedField<uint64_t>& value, uint8_t* output);
   PROTOBUF_NDEBUG_INLINE static uint8_t* WriteSInt32ToArray(
-      int field_number, const RepeatedField<int32_t>& value, uint8_t* target);
+      int field_number, const RepeatedField<int32_t>& value, uint8_t* output);
   PROTOBUF_NDEBUG_INLINE static uint8_t* WriteSInt64ToArray(
-      int field_number, const RepeatedField<int64_t>& value, uint8_t* target);
+      int field_number, const RepeatedField<int64_t>& value, uint8_t* output);
   PROTOBUF_NDEBUG_INLINE static uint8_t* WriteFixed32ToArray(
-      int field_number, const RepeatedField<uint32_t>& value, uint8_t* target);
+      int field_number, const RepeatedField<uint32_t>& value, uint8_t* output);
   PROTOBUF_NDEBUG_INLINE static uint8_t* WriteFixed64ToArray(
-      int field_number, const RepeatedField<uint64_t>& value, uint8_t* target);
+      int field_number, const RepeatedField<uint64_t>& value, uint8_t* output);
   PROTOBUF_NDEBUG_INLINE static uint8_t* WriteSFixed32ToArray(
-      int field_number, const RepeatedField<int32_t>& value, uint8_t* target);
+      int field_number, const RepeatedField<int32_t>& value, uint8_t* output);
   PROTOBUF_NDEBUG_INLINE static uint8_t* WriteSFixed64ToArray(
-      int field_number, const RepeatedField<int64_t>& value, uint8_t* target);
+      int field_number, const RepeatedField<int64_t>& value, uint8_t* output);
   PROTOBUF_NDEBUG_INLINE static uint8_t* WriteFloatToArray(
-      int field_number, const RepeatedField<float>& value, uint8_t* target);
+      int field_number, const RepeatedField<float>& value, uint8_t* output);
   PROTOBUF_NDEBUG_INLINE static uint8_t* WriteDoubleToArray(
-      int field_number, const RepeatedField<double>& value, uint8_t* target);
+      int field_number, const RepeatedField<double>& value, uint8_t* output);
   PROTOBUF_NDEBUG_INLINE static uint8_t* WriteBoolToArray(
-      int field_number, const RepeatedField<bool>& value, uint8_t* target);
+      int field_number, const RepeatedField<bool>& value, uint8_t* output);
   PROTOBUF_NDEBUG_INLINE static uint8_t* WriteEnumToArray(
-      int field_number, const RepeatedField<int>& value, uint8_t* target);
+      int field_number, const RepeatedField<int>& value, uint8_t* output);
 
   PROTOBUF_NDEBUG_INLINE static uint8_t* WriteStringToArray(
       int field_number, const std::string& value, uint8_t* target);
@@ -703,28 +700,6 @@ class PROTOBUF_EXPORT WireFormatLite {
   static size_t SInt64Size(const RepeatedField<int64_t>& value);
   static size_t EnumSize(const RepeatedField<int>& value);
 
-  static size_t Int32SizeWithPackedTagSize(
-      const RepeatedField<int32_t>& value, size_t tag_size,
-      const internal::CachedSize& cached_size);
-  static size_t Int64SizeWithPackedTagSize(
-      const RepeatedField<int64_t>& value, size_t tag_size,
-      const internal::CachedSize& cached_size);
-  static size_t UInt32SizeWithPackedTagSize(
-      const RepeatedField<uint32_t>& value, size_t tag_size,
-      const internal::CachedSize& cached_size);
-  static size_t UInt64SizeWithPackedTagSize(
-      const RepeatedField<uint64_t>& value, size_t tag_size,
-      const internal::CachedSize& cached_size);
-  static size_t SInt32SizeWithPackedTagSize(
-      const RepeatedField<int32_t>& value, size_t tag_size,
-      const internal::CachedSize& cached_size);
-  static size_t SInt64SizeWithPackedTagSize(
-      const RepeatedField<int64_t>& value, size_t tag_size,
-      const internal::CachedSize& cached_size);
-  static size_t EnumSizeWithPackedTagSize(
-      const RepeatedField<int>& value, size_t tag_size,
-      const internal::CachedSize& cached_size);
-
   // These types always have the same size.
   static constexpr size_t kFixed32Size = 4;
   static constexpr size_t kFixed64Size = 8;
@@ -784,8 +759,8 @@ class PROTOBUF_EXPORT WireFormatLite {
 // ExtensionSet is part of the lite library but UnknownFieldSet is not.
 class PROTOBUF_EXPORT FieldSkipper {
  public:
-  FieldSkipper() = default;
-  virtual ~FieldSkipper() = default;
+  FieldSkipper() {}
+  virtual ~FieldSkipper() {}
 
   // Skip a field whose tag has already been consumed.
   virtual bool SkipField(io::CodedInputStream* input, uint32_t tag);
@@ -806,7 +781,7 @@ class PROTOBUF_EXPORT CodedOutputStreamFieldSkipper : public FieldSkipper {
  public:
   explicit CodedOutputStreamFieldSkipper(io::CodedOutputStream* unknown_fields)
       : unknown_fields_(unknown_fields) {}
-  ~CodedOutputStreamFieldSkipper() override = default;
+  ~CodedOutputStreamFieldSkipper() override {}
 
   // implements FieldSkipper -----------------------------------------
   bool SkipField(io::CodedInputStream* input, uint32_t tag) override;

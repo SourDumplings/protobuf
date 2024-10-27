@@ -23,14 +23,14 @@ use std::ptr;
 ///
 /// Two `Optional`s are equal if they match both presence and the field values.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Optional<T> {
+pub enum Optional<SetVal, UnsetVal = SetVal> {
     /// The field is set; it is present in the serialized message.
     ///
     /// - For an `_opt()` accessor, this contains a `View<impl Proxied>`.
     /// - For a `_mut()` accessor, this contains a [`PresentField`] that can be
     ///   used to access the current value, convert to [`Mut`], clear presence,
     ///   or set a new value.
-    Set(T),
+    Set(SetVal),
 
     /// The field is unset; it is absent in the serialized message.
     ///
@@ -38,7 +38,7 @@ pub enum Optional<T> {
     ///   the default value.
     /// - For a `_mut()` accessor, this contains an [`AbsentField`] that can be
     ///   used to access the default or set a new value.
-    Unset(T),
+    Unset(UnsetVal),
 }
 
 impl<T> Optional<T> {
@@ -53,7 +53,9 @@ impl<T> Optional<T> {
     pub fn new(val: T, is_set: bool) -> Self {
         if is_set { Optional::Set(val) } else { Optional::Unset(val) }
     }
+}
 
+impl<T, A> Optional<T, A> {
     /// Converts into an `Option` of the set value, ignoring any unset value.
     pub fn into_option(self) -> Option<T> {
         if let Optional::Set(x) = self { Some(x) } else { None }

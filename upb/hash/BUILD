@@ -7,7 +7,9 @@
 
 load("//upb/bazel:build_defs.bzl", "UPB_DEFAULT_COPTS")
 
-package(default_applicable_licenses = ["//:license"])
+# begin:google_only
+# package(default_applicable_licenses = ["//upb:license"])
+# end:google_only
 
 cc_library(
     name = "hash",
@@ -42,6 +44,7 @@ cc_test(
     ],
 )
 
+# begin:github_only
 filegroup(
     name = "source_files",
     srcs = glob(
@@ -55,7 +58,9 @@ filegroup(
         "//upb/cmake:__pkg__",
     ],
 )
+# end:github_only
 
+# begin:github_only
 filegroup(
     name = "test_srcs",
     srcs = glob(
@@ -65,3 +70,4 @@ filegroup(
     ),
     visibility = ["//pkg:__pkg__"],
 )
+# end:github_only

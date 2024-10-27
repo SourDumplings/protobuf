@@ -287,12 +287,13 @@ public abstract class ByteString implements Iterable<Byte>, Serializable {
 
           while (formerBytes.hasNext() && latterBytes.hasNext()) {
             int result =
-                Integer.compare(toInt(formerBytes.nextByte()), toInt(latterBytes.nextByte()));
+                Integer.valueOf(toInt(formerBytes.nextByte()))
+                    .compareTo(toInt(latterBytes.nextByte()));
             if (result != 0) {
               return result;
             }
           }
-          return Integer.compare(former.size(), latter.size());
+          return Integer.valueOf(former.size()).compareTo(Integer.valueOf(latter.size()));
         }
       };
 
@@ -1051,7 +1052,7 @@ public abstract class ByteString implements Iterable<Byte>, Serializable {
     // Implementation note.
     // The public methods of this class must be synchronized.  ByteStrings
     // are guaranteed to be immutable.  Without some sort of locking, it could
-    // be possible for one thread to call toByteString(), while another thread
+    // be possible for one thread to call toByteSring(), while another thread
     // is still modifying the underlying byte array.
 
     private static final byte[] EMPTY_BYTE_ARRAY = new byte[0];

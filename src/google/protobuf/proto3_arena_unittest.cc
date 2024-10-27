@@ -9,7 +9,6 @@
 #include <string>
 #include <vector>
 
-#include "google/protobuf/descriptor.pb.h"
 #include <gtest/gtest.h>
 #include "absl/log/absl_check.h"
 #include "absl/strings/match.h"
@@ -290,10 +289,10 @@ TEST(Proto3ArenaTest, CheckOneofMessageFieldIsCleared) {
 #ifndef PROTOBUF_ASAN
   EXPECT_EQ(child->bb(), 0);
 #else
-#if GTEST_HAS_DEATH_TEST
+#if GTEST_HAS_DEATH_TEST && defined(__cpp_if_constexpr)
   EXPECT_DEATH(EXPECT_EQ(child->bb(), 100), "use-after-poison");
-#endif  // !GTEST_HAS_DEATH_TEST
-#endif  // !PROTOBUF_ASAN
+#endif
+#endif
 }
 
 TEST(Proto3OptionalTest, OptionalFieldDescriptor) {

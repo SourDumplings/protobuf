@@ -101,15 +101,8 @@ final class FieldSet<T extends FieldSet.FieldDescriptorLite<T>> {
     int n = fields.getNumArrayEntries(); // Optimisation: hoist out of hot loop.
     for (int i = 0; i < n; ++i) {
       Entry<T, Object> entry = fields.getArrayEntryAt(i);
-      Object value = entry.getValue();
-      if (value instanceof GeneratedMessageLite) {
-        ((GeneratedMessageLite<?, ?>) value).makeImmutable();
-      }
-    }
-    for (Map.Entry<T, Object> entry : fields.getOverflowEntries()) {
-      Object value = entry.getValue();
-      if (value instanceof GeneratedMessageLite) {
-        ((GeneratedMessageLite<?, ?>) value).makeImmutable();
+      if (entry.getValue() instanceof GeneratedMessageLite) {
+        ((GeneratedMessageLite<?, ?>) entry.getValue()).makeImmutable();
       }
     }
     fields.makeImmutable();
@@ -271,8 +264,7 @@ final class FieldSet<T extends FieldSet.FieldDescriptorLite<T>> {
   /**
    * Useful for implementing {@link Message.Builder#setField(Descriptors.FieldDescriptor,Object)}.
    */
-  // Avoid iterator allocation.
-  @SuppressWarnings({"ForeachList", "ForeachListWithUserVar"})
+  @SuppressWarnings({"unchecked", "rawtypes"})
   public void setField(final T descriptor, Object value) {
     if (descriptor.isRepeated()) {
       if (!(value instanceof List)) {
@@ -282,14 +274,10 @@ final class FieldSet<T extends FieldSet.FieldDescriptorLite<T>> {
 
       // Wrap the contents in a new list so that the caller cannot change
       // the list's contents after setting it.
-      List<?> list = (List<?>) value;
-      int listSize = list.size();
-      // Avoid extra allocations: no iterator, no intermediate array copy.
-      final List<Object> newList = new ArrayList<>(listSize);
-      for (int i = 0; i < listSize; i++) {
-        Object element = list.get(i);
+      final List newList = new ArrayList<>();
+      newList.addAll((List) value);
+      for (final Object element : newList) {
         verifyType(descriptor, element);
-        newList.add(element);
       }
       value = newList;
     } else {
@@ -524,8 +512,7 @@ final class FieldSet<T extends FieldSet.FieldDescriptorLite<T>> {
     }
   }
 
-  // Avoid iterator allocation.
-  @SuppressWarnings({"unchecked", "ForeachList", "ForeachListWithUserVar"})
+  @SuppressWarnings({"unchecked", "rawtypes"})
   private void mergeFromField(final Map.Entry<T, Object> entry) {
     final T descriptor = entry.getKey();
     Object otherValue = entry.getValue();
@@ -536,16 +523,11 @@ final class FieldSet<T extends FieldSet.FieldDescriptorLite<T>> {
         throw new IllegalStateException("Lazy fields can not be repeated");
       }
       Object value = getField(descriptor);
-      List<?> otherList = (List<?>) otherValue;
-      int otherListSize = otherList.size();
       if (value == null) {
-        value = new ArrayList<>(otherListSize);
+        value = new ArrayList<>();
       }
-      List<Object> list = (List<Object>) value;
-      // Avoid iterator allocation.
-      for (int i = 0; i < otherListSize; i++) {
-        Object element = otherList.get(i);
-        list.add(cloneIfMutable(element));
+      for (Object element : (List) otherValue) {
+        ((List) value).add(cloneIfMutable(element));
       }
       fields.put(descriptor, value);
     } else if (descriptor.getLiteJavaType() == WireFormat.JavaType.MESSAGE) {

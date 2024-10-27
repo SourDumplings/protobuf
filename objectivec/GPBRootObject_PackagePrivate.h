@@ -9,7 +9,7 @@
 
 #import "GPBRootObject.h"
 
-#import "GPBDescriptor.h"
+@class GPBExtensionDescriptor;
 
 @interface GPBRootObject ()
 

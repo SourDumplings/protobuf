@@ -1271,11 +1271,14 @@ absl::Status ParseMessage(JsonLexer& lex, const Desc<Traits>& desc,
 }
 }  // namespace
 
-absl::Status JsonStreamToMessage(io::ZeroCopyInputStream* input,
-                                 Message* message,
+absl::Status JsonStringToMessage(absl::string_view input, Message* message,
                                  json_internal::ParseOptions options) {
   MessagePath path(message->GetDescriptor()->full_name());
-  JsonLexer lex(input, options, &path);
+  if (PROTOBUF_DEBUG) {
+    ABSL_DLOG(INFO) << "json2/input: " << absl::CHexEscape(input);
+  }
+  io::ArrayInputStream in(input.data(), input.size());
+  JsonLexer lex(&in, options, &path);
 
   ParseProto2Descriptor::Msg msg(message);
   absl::Status s =
@@ -1357,5 +1360,3 @@ absl::Status JsonToBinaryStream(google::protobuf::util::TypeResolver* resolver,
 }  // namespace json_internal
 }  // namespace protobuf
 }  // namespace google
-
-#include "google/protobuf/port_undef.inc"

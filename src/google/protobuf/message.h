@@ -154,9 +154,6 @@ namespace field_layout {
 enum TransformValidation : uint16_t;
 }  // namespace field_layout
 
-namespace v2 {
-class V2TableGenTester;
-}  // namespace v2
 }  // namespace internal
 class UnknownFieldSet;  // unknown_field_set.h
 namespace io {
@@ -261,9 +258,13 @@ class PROTOBUF_EXPORT Message : public MessageLite {
 
   // Construct a new instance on the arena. Ownership is passed to the caller
   // if arena is a nullptr.
+#if defined(PROTOBUF_CUSTOM_VTABLE)
   Message* New(Arena* arena) const {
     return static_cast<Message*>(MessageLite::New(arena));
   }
+#else   // PROTOBUF_CUSTOM_VTABLE
+  Message* New(Arena* arena) const override = 0;
+#endif  // PROTOBUF_CUSTOM_VTABLE
 
   // Make this message into a copy of the given message.  The given message
   // must have the same descriptor, but need not necessarily be the same class.
@@ -377,20 +378,20 @@ class PROTOBUF_EXPORT Message : public MessageLite {
   // Get a struct containing the metadata for the Message, which is used in turn
   // to implement GetDescriptor() and GetReflection() above.
   Metadata GetMetadata() const;
-  static Metadata GetMetadataImpl(const internal::ClassDataFull& data);
+  static Metadata GetMetadataImpl(const ClassDataFull& data);
 
   // For CODE_SIZE types
   static bool IsInitializedImpl(const MessageLite&);
 
-  size_t ComputeUnknownFieldsSize(
-      size_t total_size, const internal::CachedSize* cached_size) const;
-  size_t MaybeComputeUnknownFieldsSize(
-      size_t total_size, const internal::CachedSize* cached_size) const;
+  size_t ComputeUnknownFieldsSize(size_t total_size,
+                                  internal::CachedSize* cached_size) const;
+  size_t MaybeComputeUnknownFieldsSize(size_t total_size,
+                                       internal::CachedSize* cached_size) const;
 
   // Reflection based version for reflection based types.
-  static absl::string_view GetTypeNameImpl(const internal::ClassData* data);
+  static absl::string_view GetTypeNameImpl(const ClassData* data);
   static void MergeImpl(MessageLite& to, const MessageLite& from);
-  void ClearImpl();
+  static void ClearImpl(MessageLite& msg);
   static size_t ByteSizeLongImpl(const MessageLite& msg);
   static uint8_t* _InternalSerializeImpl(const MessageLite& msg,
                                          uint8_t* target,
@@ -401,7 +402,7 @@ class PROTOBUF_EXPORT Message : public MessageLite {
 
   static size_t SpaceUsedLongImpl(const MessageLite& msg_lite);
 
-  static const internal::DescriptorMethods kDescriptorMethods;
+  static const DescriptorMethods kDescriptorMethods;
 
 };
 
@@ -479,7 +480,6 @@ class PROTOBUF_EXPORT Reflection final {
 
   // Returns true if the given message is a default message instance.
   bool IsDefaultInstance(const Message& message) const {
-    ABSL_DCHECK_EQ(message.GetReflection(), this);
     return schema_.IsDefaultInstance(message);
   }
 
@@ -1133,8 +1133,6 @@ class PROTOBUF_EXPORT Reflection final {
                                  bool is_string) const;
 
   friend class MapReflectionTester;
-  friend class internal::v2::V2TableGenTester;
-
   // Returns true if key is in map. Returns false if key is not in map field.
   bool ContainsMapKey(const Message& message, const FieldDescriptor* field,
                       const MapKey& key) const;
@@ -1234,17 +1232,11 @@ class PROTOBUF_EXPORT Reflection final {
     return schema_.IsFieldInlined(field);
   }
 
-  // Returns true if the field is considered to be present.
-  // Requires the input to be 'singular' i.e. non-extension, non-oneof, non-weak
-  // field.
-  // For explicit presence fields, a field is present iff the hasbit is set.
-  // For implicit presence fields, a field is present iff it is nonzero.
-  bool HasFieldSingular(const Message& message,
-                        const FieldDescriptor* field) const;
-  void SetHasBit(Message* message, const FieldDescriptor* field) const;
-  inline void ClearHasBit(Message* message, const FieldDescriptor* field) const;
-  inline void SwapHasBit(Message* message1, Message* message2,
-                         const FieldDescriptor* field) const;
+  bool HasBit(const Message& message, const FieldDescriptor* field) const;
+  void SetBit(Message* message, const FieldDescriptor* field) const;
+  inline void ClearBit(Message* message, const FieldDescriptor* field) const;
+  inline void SwapBit(Message* message1, Message* message2,
+                      const FieldDescriptor* field) const;
 
   inline const uint32_t* GetInlinedStringDonatedArray(
       const Message& message) const;

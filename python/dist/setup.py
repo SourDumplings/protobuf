@@ -11,6 +11,7 @@
 import glob
 import os
 import sys
+import sysconfig
 
 from setuptools import setup, Extension, find_packages
 

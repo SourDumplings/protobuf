@@ -20,7 +20,6 @@
 #include "google/protobuf/compiler/rust/rust_field_type.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/io/strtod.h"
-#include "google/protobuf/port.h"
 
 namespace google {
 namespace protobuf {
@@ -59,13 +58,13 @@ std::string DefaultValue(Context& ctx, const FieldDescriptor& field) {
         ABSL_LOG(FATAL) << "unreachable";
       }
     case RustFieldType::INT32:
-      return absl::StrFormat("%di32", field.default_value_int32());
+      return absl::StrFormat("%d", field.default_value_int32());
     case RustFieldType::INT64:
-      return absl::StrFormat("%di64", field.default_value_int64());
+      return absl::StrFormat("%d", field.default_value_int64());
     case RustFieldType::UINT64:
-      return absl::StrFormat("%uu64", field.default_value_uint64());
+      return absl::StrFormat("%u", field.default_value_uint64());
     case RustFieldType::UINT32:
-      return absl::StrFormat("%uu32", field.default_value_uint32());
+      return absl::StrFormat("%u", field.default_value_uint32());
     case RustFieldType::BOOL:
       return absl::StrFormat("%v", field.default_value_bool());
     case RustFieldType::STRING:
@@ -87,8 +86,7 @@ std::string DefaultValue(Context& ctx, const FieldDescriptor& field) {
     case RustFieldType::MESSAGE:
       ABSL_LOG(FATAL) << "Messages can't have defaults: " << field.type_name();
   }
-  ABSL_LOG(ERROR) << "unreachable";
-  internal::Unreachable();
+  ABSL_LOG(FATAL) << "unreachable";
 }
 
 }  // namespace rust

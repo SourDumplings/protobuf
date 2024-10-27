@@ -27,7 +27,6 @@ cc_library(
     deps = [
         ":io_win32",
         "//src/google/protobuf:arena",
-        "//src/google/protobuf:endian",
         "//src/google/protobuf:port",
         "//src/google/protobuf/stubs:lite",
         "@com_google_absl//absl/base",
@@ -103,7 +102,6 @@ cc_library(
     copts = COPTS,
     strip_include_prefix = "/src",
     deps = [
-        ":io",
         ":zero_copy_sink",
         "//src/google/protobuf:port",
         "//src/google/protobuf/stubs",
@@ -150,10 +148,7 @@ cc_library(
     name = "gzip_stream",
     srcs = ["gzip_stream.cc"],
     hdrs = ["gzip_stream.h"],
-    copts = COPTS + select({
-        "//build_defs:config_msvc": [],
-        "//conditions:default": ["-DHAVE_ZLIB"],
-    }),
+    copts = COPTS,
     strip_include_prefix = "/src",
     deps = [
         ":io",
@@ -195,10 +190,7 @@ cc_test(
         "tokenizer_unittest.cc",
         "zero_copy_stream_unittest.cc",
     ],
-    copts = COPTS + select({
-        "//build_defs:config_msvc": [],
-        "//conditions:default": ["-DHAVE_ZLIB"],
-    }),
+    copts = COPTS,
     deps = [
         ":gzip_stream",
         ":io",
@@ -214,7 +206,6 @@ cc_test(
         "//src/google/protobuf/testing",
         "//src/google/protobuf/testing:file",
         "@com_google_absl//absl/base",
-        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log:absl_check",

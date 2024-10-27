@@ -211,7 +211,8 @@ public class JsonFormat {
      * Creates a new {@link Printer} that will also print default-valued fields if their
      * FieldDescriptors are found in the supplied set. Empty repeated fields and map fields will be
      * printed as well, if they match. The new Printer clones all other configurations from the
-     * current {@link Printer}.
+     * current {@link Printer}. Call includingDefaultValueFields() with no args to unconditionally
+     * output all fields.
      *
      * <p>Note that non-repeated message fields or fields in a oneof are not honored if provided
      * here.
@@ -1818,7 +1819,7 @@ public class JsonFormat {
       try {
         BigDecimal decimalValue = new BigDecimal(json.getAsString());
         BigInteger value = decimalValue.toBigIntegerExact();
-        if (value.signum() < 0 || value.compareTo(MAX_UINT32) > 0) {
+        if (value.signum() < 0 || value.compareTo(new BigInteger("FFFFFFFF", 16)) > 0) {
           throw new InvalidProtocolBufferException("Out of range uint32 value: " + json);
         }
         return value.intValue();
@@ -1830,7 +1831,6 @@ public class JsonFormat {
       }
     }
 
-    private static final BigInteger MAX_UINT32 = new BigInteger("FFFFFFFF", 16);
     private static final BigInteger MAX_UINT64 = new BigInteger("FFFFFFFFFFFFFFFF", 16);
 
     private long parseUint64(JsonElement json) throws InvalidProtocolBufferException {

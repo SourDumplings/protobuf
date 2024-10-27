@@ -5,8 +5,9 @@
 // license that can be found in the LICENSE file or at
 // https://developers.google.com/open-source/licenses/bsd
 
-#import "GPBExtensionRegistry.h"
 #import "GPBTestUtilities.h"
+
+#import "GPBExtensionRegistry.h"
 #import "objectivec/Tests/Unittest.pbobjc.h"
 
 @interface GPBExtensionRegistryTest : GPBTestCase

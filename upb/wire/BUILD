@@ -7,8 +7,6 @@
 
 load("//upb/bazel:build_defs.bzl", "UPB_DEFAULT_COPTS")
 
-package(default_applicable_licenses = ["//:license"])
-
 cc_library(
     name = "wire",
     srcs = [
@@ -62,35 +60,6 @@ cc_library(
 )
 
 cc_library(
-    name = "byte_size",
-    srcs = ["byte_size.c"],
-    hdrs = ["byte_size.h"],
-    visibility = ["//visibility:public"],
-    deps = [
-        "//upb:mem",
-        "//upb:message",
-        "//upb:mini_table",
-        "//upb:port",
-        "//upb:wire",
-    ],
-)
-
-cc_test(
-    name = "byte_size_test",
-    srcs = ["byte_size_test.cc"],
-    deps = [
-        ":byte_size",
-        "//upb:base",
-        "//upb:mem",
-        "//upb:mini_table",
-        "//upb/test:test_messages_proto2_upb_minitable",
-        "//upb/test:test_messages_proto2_upb_proto",
-        "@com_google_googletest//:gtest",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
-cc_library(
     name = "eps_copy_input_stream",
     srcs = ["eps_copy_input_stream.c"],
     hdrs = ["eps_copy_input_stream.h"],
@@ -112,6 +81,7 @@ cc_test(
     ],
 )
 
+# begin:github_only
 filegroup(
     name = "source_files",
     srcs = glob(
@@ -125,7 +95,9 @@ filegroup(
         "//upb/cmake:__pkg__",
     ],
 )
+# end:github_only
 
+# begin:github_only
 filegroup(
     name = "test_srcs",
     srcs = glob(
@@ -135,3 +107,4 @@ filegroup(
     ),
     visibility = ["//upb:__pkg__"],
 )
+# end:github_only

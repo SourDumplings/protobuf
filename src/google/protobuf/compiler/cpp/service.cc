@@ -15,7 +15,6 @@
 
 #include "absl/strings/str_cat.h"
 #include "google/protobuf/compiler/cpp/helpers.h"
-#include "google/protobuf/descriptor.h"
 #include "google/protobuf/io/printer.h"
 
 namespace google {
@@ -256,10 +255,8 @@ void ServiceGenerator::GenerateCallMethodCases(io::Printer* printer) {
         },
         R"cc(
           case $index$:
-            this->$name$(controller,
-                         ::$proto_ns$::DownCastMessage<$input$>(request),
-                         ::$proto_ns$::DownCastMessage<$output$>(response),
-                         done);
+            $name$(controller, ::$proto_ns$::DownCastMessage<$input$>(request),
+                   ::$proto_ns$::DownCastMessage<$output$>(response), done);
             break;
         )cc");
   }

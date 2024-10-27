@@ -27,23 +27,15 @@ public final class RuntimeVersion {
   // These OSS versions are not stripped to avoid merging conflicts.
   public static final RuntimeDomain OSS_DOMAIN = RuntimeDomain.PUBLIC;
   public static final int OSS_MAJOR = 4;
-  public static final int OSS_MINOR = 30;
-  public static final int OSS_PATCH = 0;
-  public static final String OSS_SUFFIX = "-dev";
+  public static final int OSS_MINOR = 28;
+  public static final int OSS_PATCH = 3;
+  public static final String OSS_SUFFIX = "";
 
   public static final RuntimeDomain DOMAIN = OSS_DOMAIN;
   public static final int MAJOR = OSS_MAJOR;
   public static final int MINOR = OSS_MINOR;
   public static final int PATCH = OSS_PATCH;
   public static final String SUFFIX = OSS_SUFFIX;
-
-  private static final int MAX_WARNING_COUNT = 20;
-
-  @SuppressWarnings("NonFinalStaticField")
-  static int majorWarningLoggedCount = 0;
-
-  @SuppressWarnings("NonFinalStaticField")
-  static int minorWarningLoggedCount = 0;
 
   private static final String VERSION_STRING = versionString(MAJOR, MINOR, PATCH, SUFFIX);
   private static final Logger logger = Logger.getLogger(RuntimeVersion.class.getName());
@@ -94,14 +86,13 @@ public final class RuntimeVersion {
 
     // Check that runtime major version is the same as the gencode major version.
     if (major != MAJOR) {
-      if (major == MAJOR - 1 && majorWarningLoggedCount < MAX_WARNING_COUNT) {
+      if (major == MAJOR - 1) {
         logger.warning(
             String.format(
                 " Protobuf gencode version %s is exactly one major version older than the runtime"
                     + " version %s at %s. Please update the gencode to avoid compatibility"
                     + " violations in the next runtime release.",
                 gencodeVersionString, VERSION_STRING, location));
-        majorWarningLoggedCount++;
       } else {
         throw new ProtobufRuntimeVersionException(
             String.format(
@@ -147,7 +138,7 @@ public final class RuntimeVersion {
 
   private static boolean checkDisabled() {
     // Check the environmental variable, and temporarily disable validation if it's set to true.
-    String disableFlag = java.lang.System.getenv("TEMPORARILY_DISABLE_PROTOBUF_VERSION_CHECK");
+    String disableFlag = java.lang.System.getenv("TEMORARILY_DISABLE_PROTOBUF_VERSION_CHECK");
     if ((disableFlag != null && disableFlag.equals("true"))) {
       return true;
     }

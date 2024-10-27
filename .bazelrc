@@ -1,8 +1,5 @@
 build --cxxopt=-std=c++17 --host_cxxopt=-std=c++17
 
-# TODO: ErrorProne's SelfAssertions are violated in protobuf's test
-build --javacopt=-Xep:SelfAssertion:WARN
-
 build:dbg --compilation_mode=dbg
 
 build:opt --compilation_mode=opt

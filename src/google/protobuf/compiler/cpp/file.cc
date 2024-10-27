@@ -42,7 +42,6 @@
 #include "google/protobuf/compiler/versions.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/descriptor.pb.h"
-#include "google/protobuf/descriptor_visitor.h"
 #include "google/protobuf/dynamic_message.h"
 #include "google/protobuf/io/printer.h"
 
@@ -237,8 +236,7 @@ void FileGenerator::GenerateSharedHeaderCode(io::Printer* p) {
              NamespaceOpener ns(ProtobufNamespace(options_), p);
              p->Emit(R"cc(
                namespace internal {
-               template <typename T>
-               ::absl::string_view GetAnyMessageName();
+               class AnyMetadata;
                }  // namespace internal
              )cc");
            }},
@@ -491,7 +489,6 @@ void FileGenerator::GenerateSourceIncludes(io::Printer* p) {
   IncludeFile("third_party/protobuf/generated_message_tctable_impl.h", p);
   // TODO This is to include parse_context.h, we need a better way
   IncludeFile("third_party/protobuf/extension_set.h", p);
-  IncludeFile("third_party/protobuf/generated_message_util.h", p);
   IncludeFile("third_party/protobuf/wire_format_lite.h", p);
 
   if (ShouldVerify(file_, options_, &scc_analyzer_)) {
@@ -1420,18 +1417,10 @@ class FileGenerator::ForwardDeclarations {
 
   void Print(io::Printer* p, const Options& options) const {
     for (const auto& e : enums_) {
-      // TODO: Remove _IsValid forward declaration.
-      p->Emit(
-          {
-              Sub("enum", e.first).AnnotatedAs(e.second),
-              {"DEPRECATED",
-               e.second->options().deprecated() ? "[[deprecated]]" : ""},
-          },
-          R"cc(
-            enum $DEPRECATED $$enum$ : int;
-            $dllexport_decl $bool $enum$_IsValid(int value);
-            $dllexport_decl $extern const uint32_t $enum$_internal_data_[];
-          )cc");
+      p->Emit({Sub("enum", e.first).AnnotatedAs(e.second)}, R"cc(
+        enum $enum$ : int;
+        bool $enum$_IsValid(int value);
+      )cc");
     }
 
     for (const auto& c : classes_) {
@@ -1441,13 +1430,11 @@ class FileGenerator::ForwardDeclarations {
               Sub("class", c.first).AnnotatedAs(desc),
               {"default_type", DefaultInstanceType(desc, options)},
               {"default_name", DefaultInstanceName(desc, options)},
-              {"classdata_type", ClassDataType(desc, options)},
           },
           R"cc(
             class $class$;
             struct $default_type$;
             $dllexport_decl $extern $default_type$ $default_name$;
-            $dllexport_decl $extern const $pbi$::$classdata_type$ $class$_class_data_;
           )cc");
     }
 
@@ -1468,45 +1455,21 @@ class FileGenerator::ForwardDeclarations {
   }
 
   void PrintTopLevelDecl(io::Printer* p, const Options& options) const {
-    for (const auto& e : enums_) {
-      p->Emit({{"enum", QualifiedClassName(e.second, options)}},
-              R"cc(
-                template <>
-                internal::EnumTraitsT<$enum$_internal_data_>
-                    internal::EnumTraitsImpl::value<$enum$>;
-              )cc");
-    }
     if (ShouldGenerateExternSpecializations(options)) {
       for (const auto& c : classes_) {
         if (!ShouldGenerateClass(c.second, options)) continue;
-        auto vars = p->WithVars(
-            {{"class", QualifiedClassName(c.second, options)},
-             {"default_name", QualifiedDefaultInstanceName(c.second, options,
-                                                           /*split=*/false)}});
         // To reduce total linker input size in large binaries we make these
         // functions extern and define then in the pb.cc file. This avoids bloat
         // in callers by having duplicate definitions of the template.
         // However, it increases the size of the pb.cc translation units so it
         // is a tradeoff.
-        p->Emit(R"cc(
+        p->Emit({{"class", QualifiedClassName(c.second, options)}}, R"cc(
           extern template void* Arena::DefaultConstruct<$class$>(Arena*);
         )cc");
         if (!IsMapEntryMessage(c.second)) {
-          p->Emit(R"cc(
+          p->Emit({{"class", QualifiedClassName(c.second, options)}}, R"cc(
             extern template void* Arena::CopyConstruct<$class$>(Arena*,
                                                                 const void*);
-          )cc");
-        }
-        // We can't make a constexpr pointer to the global if we have DLL
-        // linkage so skip this.
-        // The fallback traits are slower, but correct.
-        if (options.dllexport_decl.empty()) {
-          p->Emit(R"cc(
-            template <>
-            internal::GeneratedMessageTraitsT<
-                decltype($default_name$), &$default_name$,
-                decltype($class$_class_data_), &$class$_class_data_>
-                internal::MessageTraitsImpl::value<$class$>;
           )cc");
         }
       }
@@ -1546,10 +1509,6 @@ void FileGenerator::GenerateForwardDeclarations(io::Printer* p) {
     }
 
     ListAllTypesForServices(file_, &classes);
-  } else {
-    // List all enums in this file, to declare the traits.
-    google::protobuf::internal::VisitDescriptors(
-        *file_, [&](const EnumDescriptor& e) { enums.push_back(&e); });
   }
 
   // Calculate the set of files whose definitions we get through include.
@@ -1660,8 +1619,9 @@ void FileGenerator::GenerateLibraryIncludes(io::Printer* p) {
   if (!message_generators_.empty()) {
     if (HasDescriptorMethods(file_, options_)) {
       IncludeFile("third_party/protobuf/message.h", p);
+    } else {
+      IncludeFile("third_party/protobuf/message_lite.h", p);
     }
-    IncludeFile("third_party/protobuf/message_lite.h", p);
   }
   if (options_.opensource_runtime) {
     // Open-source relies on unconditional includes of these.

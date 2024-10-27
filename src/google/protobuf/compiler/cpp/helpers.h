@@ -15,7 +15,6 @@
 #include <iterator>
 #include <string>
 #include <tuple>
-#include <type_traits>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -24,15 +23,14 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
-#include "absl/types/span.h"
 #include "google/protobuf/compiler/code_generator.h"
 #include "google/protobuf/compiler/cpp/names.h"
 #include "google/protobuf/compiler/cpp/options.h"
 #include "google/protobuf/compiler/scc.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/descriptor.pb.h"
-#include "google/protobuf/generated_message_tctable_impl.h"
 #include "google/protobuf/io/printer.h"
+#include "google/protobuf/port.h"
 
 
 // Must be included last.
@@ -50,6 +48,11 @@ inline absl::string_view ProtobufNamespace(const Options& opts) {
   constexpr absl::string_view kOssNs = "google::protobuf";
 
   return opts.opensource_runtime ? kOssNs : kGoogle3Ns;
+}
+
+inline std::string MacroPrefix(const Options& options) {
+  // Constants are different in the internal and external version.
+  return options.opensource_runtime ? "GOOGLE_PROTOBUF" : "GOOGLE_PROTOBUF";
 }
 
 inline std::string DeprecatedAttribute(const Options&,
@@ -172,9 +175,6 @@ std::string QualifiedDefaultInstanceName(const Descriptor* descriptor,
 std::string QualifiedDefaultInstancePtr(const Descriptor* descriptor,
                                         const Options& options,
                                         bool split = false);
-
-// Name of the ClassData subclass used for a message.
-std::string ClassDataType(const Descriptor* descriptor, const Options& options);
 
 // DescriptorTable variable name.
 std::string DescriptorTableName(const FileDescriptor* file,
@@ -330,15 +330,19 @@ inline bool IsWeak(const FieldDescriptor* field, const Options& options) {
 
 inline bool IsCord(const FieldDescriptor* field) {
   return field->cpp_type() == FieldDescriptor::CPPTYPE_STRING &&
-         field->cpp_string_type() == FieldDescriptor::CppStringType::kCord;
+         internal::cpp::EffectiveStringCType(field) == FieldOptions::CORD;
 }
 
 inline bool IsString(const FieldDescriptor* field) {
   return field->cpp_type() == FieldDescriptor::CPPTYPE_STRING &&
-         (field->cpp_string_type() == FieldDescriptor::CppStringType::kString ||
-          field->cpp_string_type() == FieldDescriptor::CppStringType::kView);
+         internal::cpp::EffectiveStringCType(field) == FieldOptions::STRING;
 }
 
+inline bool IsStringPiece(const FieldDescriptor* field) {
+  return field->cpp_type() == FieldDescriptor::CPPTYPE_STRING &&
+         internal::cpp::EffectiveStringCType(field) ==
+             FieldOptions::STRING_PIECE;
+}
 
 bool IsProfileDriven(const Options& options);
 
@@ -466,12 +470,6 @@ bool HasMapFields(const FileDescriptor* file);
 // Does this file have any enum type definitions?
 bool HasEnumDefinitions(const FileDescriptor* file);
 
-// Returns true if a message in the file can have v2 table.
-bool HasV2Table(const FileDescriptor* file);
-
-// Returns true if a message (descriptor) can have v2 table.
-bool HasV2Table(const Descriptor* descriptor);
-
 // Does this file have generated parsing, serialization, and other
 // standard methods for which reflection-based fallback implementations exist?
 inline bool HasGeneratedMethods(const FileDescriptor* file,
@@ -564,7 +562,7 @@ inline std::string MakeVarintCachedSizeFieldName(const FieldDescriptor* field,
 bool IsAnyMessage(const FileDescriptor* descriptor);
 bool IsAnyMessage(const Descriptor* descriptor);
 
-bool IsWellKnownMessage(const FileDescriptor* file);
+bool IsWellKnownMessage(const FileDescriptor* descriptor);
 
 enum class GeneratedFileType : int { kPbH, kProtoH, kProtoStaticReflectionH };
 
@@ -584,7 +582,25 @@ inline std::string IncludeGuard(const FileDescriptor* file,
     case GeneratedFileType::kProtoStaticReflectionH:
       extension = ".proto.static_reflection.h";
   }
-  return FilenameIdentifier(absl::StrCat(file->name(), extension));
+  std::string filename_identifier =
+      FilenameIdentifier(absl::StrCat(file->name(), extension));
+
+  if (IsWellKnownMessage(file)) {
+    // For well-known messages we need third_party/protobuf and net/proto2 to
+    // have distinct include guards, because some source files include both and
+    // both need to be defined (the third_party copies will be in the
+    // google::protobuf_opensource namespace).
+    return absl::StrCat(MacroPrefix(options), "_INCLUDED_",
+                        filename_identifier);
+  } else {
+    // Ideally this case would use distinct include guards for opensource and
+    // google3 protos also.  (The behavior of "first #included wins" is not
+    // ideal).  But unfortunately some legacy code includes both and depends on
+    // the identical include guards to avoid compile errors.
+    //
+    // We should clean this up so that this case can be removed.
+    return absl::StrCat("GOOGLE_PROTOBUF_INCLUDED_", filename_identifier);
+  }
 }
 
 // Returns the OptimizeMode for this file, furthermore it updates a status
@@ -630,7 +646,7 @@ std::vector<const Descriptor*> TopologicalSortMessagesInFile(
     const FileDescriptor* file, MessageSCCAnalyzer& scc_analyzer);
 
 bool HasWeakFields(const Descriptor* desc, const Options& options);
-bool HasWeakFields(const FileDescriptor* file, const Options& options);
+bool HasWeakFields(const FileDescriptor* desc, const Options& options);
 
 // Returns true if the "required" restriction check should be ignored for the
 // given field.
@@ -771,7 +787,7 @@ void ListAllTypesForServices(const FileDescriptor* fd,
 // missing to insert in the extension table in ExtensionSet.
 //
 // For services, the TU unconditionally pins the request/response objects.
-// This is the status quo for simplicity to avoid modifying the RPC layer. It
+// This is the status quo for simplicitly to avoid modifying the RPC layer. It
 // might be improved in the future.
 bool UsingImplicitWeakDescriptor(const FileDescriptor* file,
                                  const Options& options);

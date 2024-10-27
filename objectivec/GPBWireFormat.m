@@ -7,7 +7,6 @@
 
 #import "GPBWireFormat.h"
 
-#import "GPBUtilities.h"
 #import "GPBUtilities_PackagePrivate.h"
 
 enum {

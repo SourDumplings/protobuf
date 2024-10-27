@@ -489,7 +489,9 @@ public abstract class GeneratedMessage extends AbstractMessage implements Serial
      */
     private Object unknownFieldsOrBuilder = UnknownFieldSet.getDefaultInstance();
 
-    protected Builder() {}
+    protected Builder() {
+      this(null);
+    }
 
     protected Builder(BuilderParent builderParent) {
       this.builderParent = builderParent;
@@ -843,7 +845,7 @@ public abstract class GeneratedMessage extends AbstractMessage implements Serial
      * the generated API only allows us to access it as a map. This method returns the underlying
      * map field directly and thus enables us to access the map field as a list.
      */
-    @SuppressWarnings("unused")
+    @SuppressWarnings({"unused", "rawtypes"})
     protected MapFieldReflectionAccessor internalGetMapFieldReflection(int fieldNumber) {
       return internalGetMapField(fieldNumber);
     }
@@ -858,7 +860,7 @@ public abstract class GeneratedMessage extends AbstractMessage implements Serial
     }
 
     /** Like {@link #internalGetMapFieldReflection} but return a mutable version. */
-    @SuppressWarnings("unused")
+    @SuppressWarnings({"unused", "rawtypes"})
     protected MapFieldReflectionAccessor internalGetMutableMapFieldReflection(int fieldNumber) {
       return internalGetMutableMapField(fieldNumber);
     }
@@ -988,7 +990,7 @@ public abstract class GeneratedMessage extends AbstractMessage implements Serial
       final Object value = extensions.getField(descriptor);
       if (value == null) {
         if (descriptor.isRepeated()) {
-          return (T) ProtobufArrayList.emptyList();
+          return (T) Collections.emptyList();
         } else if (descriptor.getJavaType() == FieldDescriptor.JavaType.MESSAGE) {
           return (T) extension.getMessageDefaultInstance();
         } else {
@@ -1826,12 +1828,10 @@ public abstract class GeneratedMessage extends AbstractMessage implements Serial
         if (descriptor.getJavaType() == FieldDescriptor.JavaType.MESSAGE
             || descriptor.getJavaType() == FieldDescriptor.JavaType.ENUM) {
           // Must convert the whole list.
-          final ProtobufArrayList<Object> result = new ProtobufArrayList<>();
-          result.ensureCapacity(((List<?>) value).size());
+          final List<Object> result = new ArrayList<>();
           for (final Object element : (List<?>) value) {
             result.add(singularFromReflectionType(element));
           }
-          result.makeImmutable();
           return result;
         } else {
           return value;
@@ -2066,7 +2066,8 @@ public abstract class GeneratedMessage extends AbstractMessage implements Serial
                   new RepeatedEnumFieldAccessor(
                       field, camelCaseNames[i], messageClass, builderClass);
             } else {
-              fields[i] = new RepeatedFieldAccessor(camelCaseNames[i], messageClass, builderClass);
+              fields[i] =
+                  new RepeatedFieldAccessor(field, camelCaseNames[i], messageClass, builderClass);
             }
           } else {
             if (field.getJavaType() == FieldDescriptor.JavaType.MESSAGE) {
@@ -2622,6 +2623,7 @@ public abstract class GeneratedMessage extends AbstractMessage implements Serial
       protected final MethodInvoker invoker;
 
       RepeatedFieldAccessor(
+          final FieldDescriptor descriptor,
           final String camelCaseName,
           final Class<? extends GeneratedMessage> messageClass,
           final Class<? extends Builder<?>> builderClass) {
@@ -2926,7 +2928,7 @@ public abstract class GeneratedMessage extends AbstractMessage implements Serial
           final String camelCaseName,
           final Class<? extends GeneratedMessage> messageClass,
           final Class<? extends Builder<?>> builderClass) {
-        super(camelCaseName, messageClass, builderClass);
+        super(descriptor, camelCaseName, messageClass, builderClass);
 
         enumDescriptor = descriptor.getEnumType();
 
@@ -3122,7 +3124,7 @@ public abstract class GeneratedMessage extends AbstractMessage implements Serial
           final String camelCaseName,
           final Class<? extends GeneratedMessage> messageClass,
           final Class<? extends Builder<?>> builderClass) {
-        super(camelCaseName, messageClass, builderClass);
+        super(descriptor, camelCaseName, messageClass, builderClass);
 
         newBuilderMethod = getMethodOrDie(type, "newBuilder");
         getBuilderMethodBuilder =

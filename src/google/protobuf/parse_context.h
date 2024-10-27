@@ -8,18 +8,13 @@
 #ifndef GOOGLE_PROTOBUF_PARSE_CONTEXT_H__
 #define GOOGLE_PROTOBUF_PARSE_CONTEXT_H__
 
-#include <algorithm>
-#include <climits>
-#include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <limits>
 #include <string>
 #include <type_traits>
 #include <utility>
 
 #include "absl/base/config.h"
-#include "absl/base/prefetch.h"
 #include "absl/log/absl_check.h"
 #include "absl/log/absl_log.h"
 #include "absl/strings/cord.h"
@@ -32,11 +27,9 @@
 #include "google/protobuf/inlined_string_field.h"
 #include "google/protobuf/io/coded_stream.h"
 #include "google/protobuf/io/zero_copy_stream.h"
-#include "google/protobuf/message_lite.h"
 #include "google/protobuf/metadata_lite.h"
 #include "google/protobuf/port.h"
 #include "google/protobuf/repeated_field.h"
-#include "google/protobuf/repeated_ptr_field.h"
 #include "google/protobuf/wire_format_lite.h"
 
 
@@ -110,7 +103,7 @@ class PROTOBUF_EXPORT EpsCopyInputStream {
     ABSL_DCHECK(ptr <= buffer_end_ + kSlopBytes);
     int count;
     if (next_chunk_ == patch_buffer_) {
-      count = BytesAvailable(ptr);
+      count = static_cast<int>(buffer_end_ + kSlopBytes - ptr);
     } else {
       count = size_ + static_cast<int>(buffer_end_ - ptr);
     }
@@ -177,14 +170,14 @@ class PROTOBUF_EXPORT EpsCopyInputStream {
   }
 
   PROTOBUF_NODISCARD const char* Skip(const char* ptr, int size) {
-    if (size <= BytesAvailable(ptr)) {
+    if (size <= buffer_end_ + kSlopBytes - ptr) {
       return ptr + size;
     }
     return SkipFallback(ptr, size);
   }
   PROTOBUF_NODISCARD const char* ReadString(const char* ptr, int size,
                                             std::string* s) {
-    if (size <= BytesAvailable(ptr)) {
+    if (size <= buffer_end_ + kSlopBytes - ptr) {
       // Fundamentally we just want to do assign to the string.
       // However micro-benchmarks regress on string reading cases. So we copy
       // the same logic from the old CodedInputStream ReadString. Note: as of
@@ -198,7 +191,7 @@ class PROTOBUF_EXPORT EpsCopyInputStream {
   }
   PROTOBUF_NODISCARD const char* AppendString(const char* ptr, int size,
                                               std::string* s) {
-    if (size <= BytesAvailable(ptr)) {
+    if (size <= buffer_end_ + kSlopBytes - ptr) {
       s->append(ptr, size);
       return ptr + size;
     }
@@ -211,7 +204,8 @@ class PROTOBUF_EXPORT EpsCopyInputStream {
 
   PROTOBUF_NODISCARD const char* ReadCord(const char* ptr, int size,
                                           ::absl::Cord* cord) {
-    if (size <= std::min<int>(BytesAvailable(ptr), kMaxCordBytesToCopy)) {
+    if (size <= std::min<int>(static_cast<int>(buffer_end_ + kSlopBytes - ptr),
+                              kMaxCordBytesToCopy)) {
       *cord = absl::string_view(ptr, size);
       return ptr + size;
     }
@@ -351,14 +345,6 @@ class PROTOBUF_EXPORT EpsCopyInputStream {
   // systems. TODO do we need to set this as build flag?
   enum { kSafeStringSize = 50000000 };
 
-  int BytesAvailable(const char* ptr) const {
-    ABSL_DCHECK_NE(ptr, nullptr);
-    ptrdiff_t available = buffer_end_ + kSlopBytes - ptr;
-    ABSL_DCHECK_GE(available, 0);
-    ABSL_DCHECK_LE(available, INT_MAX);
-    return static_cast<int>(available);
-  }
-
   // Advances to next buffer chunk returns a pointer to the same logical place
   // in the stream as set by overrun. Overrun indicates the position in the slop
   // region the parse was left (0 <= overrun <= kSlopBytes). Returns true if at
@@ -396,7 +382,7 @@ class PROTOBUF_EXPORT EpsCopyInputStream {
 
   template <typename A>
   const char* AppendSize(const char* ptr, int size, const A& append) {
-    int chunk_size = BytesAvailable(ptr);
+    int chunk_size = static_cast<int>(buffer_end_ + kSlopBytes - ptr);
     do {
       ABSL_DCHECK(size > chunk_size);
       if (next_chunk_ == nullptr) return nullptr;
@@ -410,7 +396,7 @@ class PROTOBUF_EXPORT EpsCopyInputStream {
       ptr = Next();
       if (ptr == nullptr) return nullptr;  // passed the limit
       ptr += kSlopBytes;
-      chunk_size = BytesAvailable(ptr);
+      chunk_size = static_cast<int>(buffer_end_ + kSlopBytes - ptr);
     } while (size > chunk_size);
     append(ptr, size);
     return ptr + size;
@@ -425,7 +411,7 @@ class PROTOBUF_EXPORT EpsCopyInputStream {
   const char* AppendUntilEnd(const char* ptr, const A& append) {
     if (ptr - buffer_end_ > limit_) return nullptr;
     while (limit_ > kSlopBytes) {
-      size_t chunk_size = BytesAvailable(ptr);
+      size_t chunk_size = buffer_end_ + kSlopBytes - ptr;
       append(ptr, chunk_size);
       ptr = Next();
       if (ptr == nullptr) return limit_end_;
@@ -649,7 +635,7 @@ inline const char* VarintParseSlow(const char* p, uint32_t res, uint64_t* out) {
   return tmp.first;
 }
 
-#if defined(__aarch64__) && !defined(_MSC_VER)
+#ifdef __aarch64__
 // Generally, speaking, the ARM-optimized Varint decode algorithm is to extract
 // and concatenate all potentially valid data bits, compute the actual length
 // of the Varint, and mask off the data bits which are not actually part of the
@@ -880,8 +866,7 @@ static const char* VarintParseSlowArm(const char* p, uint64_t* out,
 // The caller must ensure that p points to at least 10 valid bytes.
 template <typename T>
 PROTOBUF_NODISCARD const char* VarintParse(const char* p, T* out) {
-  AssertBytesAreReadable(p, 10);
-#if defined(__aarch64__) && defined(ABSL_IS_LITTLE_ENDIAN) && !defined(_MSC_VER)
+#if defined(__aarch64__) && defined(ABSL_IS_LITTLE_ENDIAN)
   // This optimization is not supported in big endian mode
   uint64_t first8;
   std::memcpy(&first8, p, sizeof(first8));
@@ -1059,11 +1044,9 @@ inline const char* ParseBigVarint(const char* p, uint64_t* out) {
 
 PROTOBUF_EXPORT
 std::pair<const char*, int32_t> ReadSizeFallback(const char* p, uint32_t first);
-
-// Used for length prefixes. Could read up to 5 bytes, but no more than
-// necessary for a single varint. The caller must ensure enough bytes are
-// available. Additionally it makes sure the unsigned value fits in an int32_t,
-// otherwise returns nullptr. Caller must ensure it is safe to call.
+// Used for tags, could read up to 5 bytes which must be available. Additionally
+// it makes sure the unsigned value fits a int32_t, otherwise returns nullptr.
+// Caller must ensure its safe to call.
 inline uint32_t ReadSize(const char** pp) {
   auto p = *pp;
   uint32_t res = static_cast<uint8_t>(p[0]);
@@ -1177,7 +1160,7 @@ template <typename T>
 const char* EpsCopyInputStream::ReadPackedFixed(const char* ptr, int size,
                                                 RepeatedField<T>* out) {
   GOOGLE_PROTOBUF_PARSER_ASSERT(ptr);
-  int nbytes = BytesAvailable(ptr);
+  int nbytes = static_cast<int>(buffer_end_ + kSlopBytes - ptr);
   while (size > nbytes) {
     int num = nbytes / sizeof(T);
     int old_entries = out->size();
@@ -1195,7 +1178,7 @@ const char* EpsCopyInputStream::ReadPackedFixed(const char* ptr, int size,
     ptr = Next();
     if (ptr == nullptr) return nullptr;
     ptr += kSlopBytes - (nbytes - block_size);
-    nbytes = BytesAvailable(ptr);
+    nbytes = static_cast<int>(buffer_end_ + kSlopBytes - ptr);
   }
   int num = size / sizeof(T);
   int block_size = num * sizeof(T);
@@ -1368,13 +1351,30 @@ PROTOBUF_NODISCARD PROTOBUF_EXPORT const char* PackedSInt64Parser(
 PROTOBUF_NODISCARD PROTOBUF_EXPORT const char* PackedEnumParser(
     void* object, const char* ptr, ParseContext* ctx);
 
-template <typename T, typename Validator>
+template <typename T>
+PROTOBUF_NODISCARD const char* PackedEnumParser(void* object, const char* ptr,
+                                                ParseContext* ctx,
+                                                bool (*is_valid)(int),
+                                                InternalMetadata* metadata,
+                                                int field_num) {
+  return ctx->ReadPackedVarint(
+      ptr, [object, is_valid, metadata, field_num](int32_t val) {
+        if (is_valid(val)) {
+          static_cast<RepeatedField<int>*>(object)->Add(val);
+        } else {
+          WriteVarint(field_num, val, metadata->mutable_unknown_fields<T>());
+        }
+      });
+}
+
+template <typename T>
 PROTOBUF_NODISCARD const char* PackedEnumParserArg(
-    void* object, const char* ptr, ParseContext* ctx, Validator validator,
+    void* object, const char* ptr, ParseContext* ctx,
+    bool (*is_valid)(const void*, int), const void* data,
     InternalMetadata* metadata, int field_num) {
   return ctx->ReadPackedVarint(
-      ptr, [object, validator, metadata, field_num](int32_t val) {
-        if (validator.IsValid(val)) {
+      ptr, [object, is_valid, data, metadata, field_num](int32_t val) {
+        if (is_valid(data, val)) {
           static_cast<RepeatedField<int>*>(object)->Add(val);
         } else {
           WriteVarint(field_num, val, metadata->mutable_unknown_fields<T>());

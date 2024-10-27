@@ -48,7 +48,6 @@ class AccessorGenerator {
     ctx.printer().PrintRaw("\n");
   }
   void GenerateExternC(Context& ctx, const FieldDescriptor& field) const {
-    ABSL_CHECK(ctx.is_cpp());
     InExternC(ctx, field);
     ctx.printer().PrintRaw("\n");
   }
@@ -89,15 +88,6 @@ class SingularScalar final : public AccessorGenerator {
 class SingularString final : public AccessorGenerator {
  public:
   ~SingularString() override = default;
-  void InMsgImpl(Context& ctx, const FieldDescriptor& field,
-                 AccessorCase accessor_case) const override;
-  void InExternC(Context& ctx, const FieldDescriptor& field) const override;
-  void InThunkCc(Context& ctx, const FieldDescriptor& field) const override;
-};
-
-class SingularCord final : public AccessorGenerator {
- public:
-  ~SingularCord() override = default;
   void InMsgImpl(Context& ctx, const FieldDescriptor& field,
                  AccessorCase accessor_case) const override;
   void InExternC(Context& ctx, const FieldDescriptor& field) const override;

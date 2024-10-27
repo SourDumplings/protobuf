@@ -1475,7 +1475,6 @@ class FeatureInheritanceTest(unittest.TestCase):
     file = descriptor_pb2.FileDescriptorProto()
     descriptor_pb2.DESCRIPTOR.CopyToProto(file)
     ret.pool.Add(file)
-    file.Clear()
     unittest_features_pb2.DESCRIPTOR.CopyToProto(file)
     ret.pool.Add(file)
 

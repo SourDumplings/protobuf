@@ -113,11 +113,11 @@ namespace Google.Protobuf.Reflection
         internal void CrossLink()
         {
             IDescriptor lookup = File.DescriptorPool.LookupSymbol(Proto.InputType, this);
-            if (lookup is not MessageDescriptor inputType)
+            if (lookup is not MessageDescriptor inpoutType)
             {
                 throw new DescriptorValidationException(this, "\"" + Proto.InputType + "\" is not a message type.");
             }
-            InputType = inputType;
+            InputType = inpoutType;
 
             lookup = File.DescriptorPool.LookupSymbol(Proto.OutputType, this);
             if (lookup is not MessageDescriptor outputType)

@@ -105,19 +105,19 @@ void ArenaStringPtr::Set(absl::string_view value, Arena* arena) {
     tagged_ptr_ = arena != nullptr ? CreateArenaString(*arena, value)
                                    : CreateString(value);
   } else {
-    if (internal::DebugHardenForceCopyDefaultString()) {
-      if (arena == nullptr) {
-        auto* old = tagged_ptr_.GetIfAllocated();
-        tagged_ptr_ = CreateString(value);
-        delete old;
-      } else {
-        auto* old = UnsafeMutablePointer();
-        tagged_ptr_ = CreateArenaString(*arena, value);
-        old->assign("garbagedata");
-      }
+#ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+    if (arena == nullptr) {
+      auto* old = tagged_ptr_.GetIfAllocated();
+      tagged_ptr_ = CreateString(value);
+      delete old;
     } else {
-      UnsafeMutablePointer()->assign(value.data(), value.length());
+      auto* old = UnsafeMutablePointer();
+      tagged_ptr_ = CreateArenaString(*arena, value);
+      old->assign("garbagedata");
     }
+#else   // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+    UnsafeMutablePointer()->assign(value.data(), value.length());
+#endif  // PROTOBUF_FORCE_COPY_DEFAULT_STRING
   }
 }
 
@@ -130,19 +130,19 @@ void ArenaStringPtr::Set(const std::string& value, Arena* arena) {
     tagged_ptr_ = arena != nullptr ? CreateArenaString(*arena, value)
                                    : CreateString(value);
   } else {
-    if (internal::DebugHardenForceCopyDefaultString()) {
-      if (arena == nullptr) {
-        auto* old = tagged_ptr_.GetIfAllocated();
-        tagged_ptr_ = CreateString(value);
-        delete old;
-      } else {
-        auto* old = UnsafeMutablePointer();
-        tagged_ptr_ = CreateArenaString(*arena, value);
-        old->assign("garbagedata");
-      }
+#ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+    if (arena == nullptr) {
+      auto* old = tagged_ptr_.GetIfAllocated();
+      tagged_ptr_ = CreateString(value);
+      delete old;
     } else {
-      UnsafeMutablePointer()->assign(value);
+      auto* old = UnsafeMutablePointer();
+      tagged_ptr_ = CreateArenaString(*arena, value);
+      old->assign("garbagedata");
     }
+#else   // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+    UnsafeMutablePointer()->assign(value);
+#endif  // PROTOBUF_FORCE_COPY_DEFAULT_STRING
   }
 }
 

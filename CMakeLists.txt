@@ -84,7 +84,7 @@ if (protobuf_BUILD_SHARED_LIBS)
 endif ()
 
 # Version metadata
-set(protobuf_VERSION_STRING "5.30.0")
+set(protobuf_VERSION_STRING "5.28.3")
 set(protobuf_DESCRIPTION "Protocol Buffers")
 set(protobuf_CONTACT "protobuf@googlegroups.com")
 
@@ -153,6 +153,14 @@ file(REMOVE ${CMAKE_CURRENT_BINARY_DIR}/cmaketest.map)
 
 find_package(Threads REQUIRED)
 
+# We can install dependencies from submodules if we're running
+# CMake v3.13 or newer.
+if(CMAKE_VERSION VERSION_LESS 3.13)
+  set(_protobuf_INSTALL_SUPPORTED_FROM_MODULE OFF)
+else()
+  set(_protobuf_INSTALL_SUPPORTED_FROM_MODULE ON)
+endif()
+
 set(_protobuf_FIND_ZLIB)
 if (protobuf_WITH_ZLIB)
   find_package(ZLIB)
@@ -198,11 +206,31 @@ if (protobuf_BUILD_SHARED_LIBS)
   set(protobuf_SHARED_OR_STATIC "SHARED")
 else (protobuf_BUILD_SHARED_LIBS)
   set(protobuf_SHARED_OR_STATIC "STATIC")
-  set(ABSL_MSVC_STATIC_RUNTIME ON)
-  if (protobuf_MSVC_STATIC_RUNTIME)
-      set(CMAKE_MSVC_RUNTIME_LIBRARY MultiThreaded$<$<CONFIG:Debug>:Debug>)
+  # The CMAKE_<LANG>_FLAGS(_<BUILD_TYPE>)? is meant to be user controlled.
+  # Prior to CMake 3.15, the MSVC runtime library was pushed into the same flags
+  # making programmatic control difficult.  Prefer the functionality in newer
+  # CMake versions when available.
+  if(${CMAKE_VERSION} VERSION_GREATER 3.15 OR ${CMAKE_VERSION} VERSION_EQUAL 3.15)
+    if (protobuf_MSVC_STATIC_RUNTIME)
+        set(CMAKE_MSVC_RUNTIME_LIBRARY MultiThreaded$<$<CONFIG:Debug>:Debug>)
+    else()
+        set(CMAKE_MSVC_RUNTIME_LIBRARY MultiThreaded$<$<CONFIG:Debug>:Debug>DLL)
+    endif()
   else()
-      set(CMAKE_MSVC_RUNTIME_LIBRARY MultiThreaded$<$<CONFIG:Debug>:Debug>DLL)
+    # In case we are building static libraries, link also the runtime library statically
+    # so that MSVCR*.DLL is not required at runtime.
+    # https://msdn.microsoft.com/en-us/library/2kzt1wy3.aspx
+    # This is achieved by replacing msvc option /MD with /MT and /MDd with /MTd
+    # http://www.cmake.org/Wiki/CMake_FAQ#How_can_I_build_my_MSVC_application_with_a_static_runtime.3F
+    if (MSVC AND protobuf_MSVC_STATIC_RUNTIME)
+      foreach(flag_var
+          CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
+          CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
+        if(${flag_var} MATCHES "/MD")
+          string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
+        endif(${flag_var} MATCHES "/MD")
+      endforeach(flag_var)
+    endif (MSVC AND protobuf_MSVC_STATIC_RUNTIME)
   endif()
 endif (protobuf_BUILD_SHARED_LIBS)
 
@@ -261,13 +289,11 @@ include_directories(
   ${protobuf_BINARY_DIR}/src
   ${protobuf_SOURCE_DIR}/src)
 
-set(protobuf_FETCH_DEPENDENCIES ON CACHE BOOL "Allow downloading dependencies from GitHub. If this option is not set, the dependency must be available locally as an installed package.")
+set(protobuf_ABSL_PROVIDER "module" CACHE STRING "Provider of absl library")
+set_property(CACHE protobuf_ABSL_PROVIDER PROPERTY STRINGS "module" "package")
 
-set(protobuf_ABSL_PROVIDER "fetch" CACHE STRING "Provider of absl library.  `fetch` downloads from GitHub and `package` searches for a local installation")
-set_property(CACHE protobuf_ABSL_PROVIDER PROPERTY STRINGS "package" "fetch")
-
-set(protobuf_JSONCPP_PROVIDER "fetch" CACHE STRING "Provider of jsoncpp library.  `fetch` downloads from GitHub and `package` searches for a local installation")
-set_property(CACHE protobuf_JSONCPP_PROVIDER PROPERTY STRINGS "package" "fetch")
+set(protobuf_JSONCPP_PROVIDER "module" CACHE STRING "Provider of jsoncpp library")
+set_property(CACHE protobuf_JSONCPP_PROVIDER PROPERTY STRINGS "module" "package")
 
 if (protobuf_BUILD_TESTS)
   include(${protobuf_SOURCE_DIR}/cmake/gtest.cmake)

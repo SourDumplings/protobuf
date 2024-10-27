@@ -10,6 +10,7 @@
 
 #import "GPBArray.h"
 #import "GPBArray_PackagePrivate.h"
+
 #import "GPBTestUtilities.h"
 
 // To let the testing macros work, add some extra methods to simplify things.

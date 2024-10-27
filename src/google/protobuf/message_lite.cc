@@ -15,14 +15,11 @@
 #include <climits>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <istream>
 #include <ostream>
 #include <string>
-#include <typeinfo>
 #include <utility>
 
-#include "absl/base/config.h"
 #include "absl/log/absl_check.h"
 #include "absl/log/absl_log.h"
 #include "absl/strings/cord.h"
@@ -40,7 +37,6 @@
 #include "google/protobuf/io/zero_copy_stream_impl_lite.h"
 #include "google/protobuf/metadata_lite.h"
 #include "google/protobuf/parse_context.h"
-#include "google/protobuf/port.h"
 
 
 // Must be included last.
@@ -49,21 +45,13 @@
 namespace google {
 namespace protobuf {
 
-void MessageLite::DestroyInstance() {
+void MessageLite::DestroyInstance(bool free_memory) {
 #if defined(PROTOBUF_CUSTOM_VTABLE)
-  _class_data_->destroy_message(*this);
+  _class_data_->delete_message(this, free_memory);
 #else   // PROTOBUF_CUSTOM_VTABLE
+  ABSL_DCHECK(!free_memory);
   this->~MessageLite();
 #endif  // PROTOBUF_CUSTOM_VTABLE
-}
-
-void MessageLite::DeleteInstance() {
-  // Cache the size and pointer because we can't access them after the
-  // destruction.
-  const size_t size = GetClassData()->allocation_size();
-  void* const ptr = this;
-  DestroyInstance();
-  internal::SizedDelete(ptr, size);
 }
 
 void MessageLite::CheckTypeAndMergeFrom(const MessageLite& other) {
@@ -76,14 +64,22 @@ void MessageLite::CheckTypeAndMergeFrom(const MessageLite& other) {
   data->merge_to_from(*this, other);
 }
 
-MessageLite* MessageLite::New(Arena* arena) const {
-  auto* data = GetClassData();
-  // The `instance->New()` expression requires using the actual instance
-  // instead of the prototype for the inner function call.
-  // Certain custom instances have special per-instance state that needs to be
-  // copied.
-  return data->message_creator.New(this, data->prototype, arena);
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+uint8_t* MessageLite::_InternalSerialize(
+    uint8_t* ptr, io::EpsCopyOutputStream* stream) const {
+  return _class_data_->serialize(*this, ptr, stream);
 }
+
+MessageLite* MessageLite::New(Arena* arena) const {
+  return static_cast<MessageLite*>(_class_data_->new_message(this, arena));
+}
+
+void MessageLite::Clear() { _class_data_->clear(*this); }
+
+size_t MessageLite::ByteSizeLong() const {
+  return _class_data_->byte_size_long(*this);
+}
+#endif  // PROTOBUF_CUSTOM_VTABLE
 
 bool MessageLite::IsInitialized() const {
   auto* data = GetClassData();
@@ -95,8 +91,8 @@ const char* MessageLite::_InternalParse(const char* ptr,
   return internal::TcParser::ParseLoop(this, ptr, ctx, GetTcParseTable());
 }
 
-internal::GetTypeNameReturnType MessageLite::GetTypeName() const {
-  return internal::GetTypeNameReturnType(TypeId::Get(*this).name());
+std::string MessageLite::GetTypeName() const {
+  return std::string(TypeId::Get(*this).name());
 }
 
 absl::string_view TypeId::name() const {
@@ -106,7 +102,7 @@ absl::string_view TypeId::name() const {
   }
 
   // For LITE messages, the type name is a char[] just beyond ClassData.
-  return reinterpret_cast<const char*>(data_) + sizeof(internal::ClassData);
+  return reinterpret_cast<const char*>(data_) + sizeof(MessageLite::ClassData);
 }
 
 void MessageLite::OnDemandRegisterArenaDtor(Arena* arena) {
@@ -141,9 +137,15 @@ std::string MessageLite::DebugString() const {
   return absl::StrCat("MessageLite at 0x", absl::Hex(this));
 }
 
-#if !defined(PROTOBUF_CUSTOM_VTABLE)
 int MessageLite::GetCachedSize() const { return AccessCachedSize().Get(); }
-#endif
+
+internal::CachedSize& MessageLite::AccessCachedSize() const {
+  auto* data = GetClassData();
+  ABSL_DCHECK(data != nullptr);
+  ABSL_DCHECK(data->cached_size_offset != 0);
+  return *reinterpret_cast<internal::CachedSize*>(const_cast<char*>(
+      reinterpret_cast<const char*>(this) + data->cached_size_offset));
+}
 
 namespace {
 
@@ -200,9 +202,6 @@ void MessageLite::LogInitializationErrorMessage() const {
 namespace internal {
 
 void FailDynamicCast(const MessageLite& from, const MessageLite& to) {
-#if defined(ABSL_HAVE_EXCEPTIONS)
-  throw std::bad_cast();
-#endif
   const auto to_name = to.GetTypeName();
   if (internal::GetClassData(from)->is_dynamic) {
     ABSL_LOG(FATAL)
@@ -279,6 +278,7 @@ template bool MergeFromImpl<false>(BoundedZCIS input, MessageLite* msg,
 template bool MergeFromImpl<true>(BoundedZCIS input, MessageLite* msg,
                                   const internal::TcParseTableBase* tc_table,
                                   MessageLite::ParseFlags parse_flags);
+
 }  // namespace internal
 
 class ZeroCopyCodedInputStream : public io::ZeroCopyInputStream {
@@ -305,7 +305,6 @@ class ZeroCopyCodedInputStream : public io::ZeroCopyInputStream {
     cord->Append(std::move(tmp));
     return res;
   }
-
  private:
   io::CodedInputStream* cis_;
 };
@@ -654,7 +653,7 @@ bool MessageLite::AppendPartialToCord(absl::Cord* output) const {
   const size_t size = ByteSizeLong();
   const size_t total_size = size + output->size();
   if (size > INT_MAX) {
-    ABSL_LOG(ERROR) << "Exceeded maximum protobuf size of 2GB: " << size;
+    ABSL_LOG(ERROR) << "Exceeded maximum protobuf size of 2GB.";
     return false;
   }
 
@@ -717,6 +716,16 @@ absl::Cord MessageLite::SerializePartialAsCord() const {
 }
 
 namespace internal {
+
+MessageLite* NewFromPrototypeHelper(const MessageLite* prototype,
+                                    Arena* arena) {
+  return prototype->New(arena);
+}
+template <>
+void GenericTypeHandler<MessageLite>::Merge(const MessageLite& from,
+                                            MessageLite* to) {
+  to->CheckTypeAndMergeFrom(from);
+}
 
 // Non-inline variants of std::string specializations for
 // various InternalMetadata routines.

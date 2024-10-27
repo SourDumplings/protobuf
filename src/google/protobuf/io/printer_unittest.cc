@@ -610,7 +610,7 @@ TEST_F(PrinterTest, EmitConsumeAfter) {
             "};\n");
 }
 
-TEST_F(PrinterTest, EmitWithSubstitutionListener) {
+TEST_F(PrinterTest, EmitWithSubstituionListener) {
   std::vector<std::string> seen;
   Printer printer(output());
   const auto emit = [&] {

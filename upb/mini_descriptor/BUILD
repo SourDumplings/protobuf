@@ -4,8 +4,6 @@ load(
     "UPB_DEFAULT_CPPOPTS",
 )
 
-package(default_applicable_licenses = ["//:license"])
-
 cc_library(
     name = "mini_descriptor",
     srcs = [
@@ -76,6 +74,7 @@ cc_test(
     ],
 )
 
+# begin:github_only
 filegroup(
     name = "source_files",
     srcs = glob(
@@ -89,7 +88,9 @@ filegroup(
         "//upb/cmake:__pkg__",
     ],
 )
+# end:github_only
 
+# begin:github_only
 filegroup(
     name = "test_srcs",
     srcs = glob(
@@ -99,3 +100,4 @@ filegroup(
     ),
     visibility = ["//pkg:__pkg__"],
 )
+# end:github_only

@@ -18,7 +18,7 @@ java_test(
     srcs = ["JavaVersionTest.java"],
     test_class = "JavaVersionTest",
     deps = [
-        "@protobuf_maven//:com_google_truth_truth",
-        "@protobuf_maven//:junit_junit",
+        "@maven//:com_google_truth_truth",
+        "@maven//:junit_junit",
     ],
 )

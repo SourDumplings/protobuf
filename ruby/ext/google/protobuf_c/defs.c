@@ -7,6 +7,7 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <ruby/version.h>
 
 #include "convert.h"
 #include "message.h"
@@ -146,8 +147,8 @@ VALUE DescriptorPool_add_serialized_file(VALUE _self,
  * call-seq:
  *     DescriptorPool.lookup(name) => descriptor
  *
- * Finds a Descriptor, EnumDescriptor, FieldDescriptor or ServiceDescriptor by
- * name and returns it, or nil if none exists with the given name.
+ * Finds a Descriptor, EnumDescriptor or FieldDescriptor by name and returns it,
+ * or nil if none exists with the given name.
  */
 static VALUE DescriptorPool_lookup(VALUE _self, VALUE name) {
   DescriptorPool* self = ruby_to_DescriptorPool(_self);

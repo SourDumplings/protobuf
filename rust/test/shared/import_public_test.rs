@@ -7,9 +7,7 @@
 
 //! Tests covering codegen of import public statements.
 
-use googletest::prelude::*;
-
-#[gtest]
+#[test]
 fn test_import_public_types_are_reexported() {
     let _: import_public_rust_proto::PrimarySrcPubliclyImportedMsg;
     let _: import_public_rust_proto::PrimarySrcPubliclyImportedMsgView;

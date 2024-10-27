@@ -104,7 +104,7 @@ public class ExtensionRegistryLite {
       synchronized (ExtensionRegistryLite.class) {
         result = emptyRegistry;
         if (result == null) {
-          emptyRegistry = result = ExtensionRegistryFactory.createEmpty();
+          result = emptyRegistry = ExtensionRegistryFactory.createEmpty();
         }
       }
     }

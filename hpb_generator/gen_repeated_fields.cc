@@ -12,16 +12,16 @@
 
 #include "google/protobuf/descriptor.pb.h"
 #include "absl/strings/string_view.h"
-#include "google/protobuf/compiler/hpb/context.h"
+#include "google/protobuf/descriptor.h"
 #include "google/protobuf/compiler/hpb/gen_accessors.h"
 #include "google/protobuf/compiler/hpb/gen_enums.h"
 #include "google/protobuf/compiler/hpb/gen_extensions.h"
 #include "google/protobuf/compiler/hpb/gen_utils.h"
 #include "google/protobuf/compiler/hpb/names.h"
-#include "google/protobuf/descriptor.h"
-#include "upb_generator/c/names.h"
+#include "google/protobuf/compiler/hpb/output.h"
 #include "upb_generator/common.h"
 #include "upb_generator/file_layout.h"
+#include "upb_generator/names.h"
 
 namespace google::protobuf::hpb_generator {
 
@@ -31,32 +31,31 @@ namespace protobuf = ::proto2;
 void WriteRepeatedFieldUsingAccessors(const protobuf::FieldDescriptor* field,
                                       absl::string_view class_name,
                                       absl::string_view resolved_field_name,
-                                      Context& ctx, bool read_only) {
+                                      Output& output, bool read_only) {
   if (field->cpp_type() == protobuf::FieldDescriptor::CPPTYPE_MESSAGE) {
-    ctx.EmitLegacy(
+    output(
         R"cc(
           using $0Access::$1;
           using $0Access::$1_size;
         )cc",
         class_name, resolved_field_name);
     if (!read_only) {
-      ctx.EmitLegacy(
+      output(
           R"cc(
             using $0Access::add_$1;
-            using $0Access::add_alias_$1;
             using $0Access::mutable_$1;
           )cc",
           class_name, resolved_field_name);
     }
   } else {
-    ctx.EmitLegacy(
+    output(
         R"cc(
           using $0Access::$1;
           using $0Access::$1_size;
         )cc",
         class_name, resolved_field_name);
     if (!read_only) {
-      ctx.EmitLegacy(
+      output(
           R"cc(
             using $0Access::add_$1;
             using $0Access::mutable_$1;
@@ -72,8 +71,8 @@ void WriteRepeatedFieldsInMessageHeader(const protobuf::Descriptor* desc,
                                         const protobuf::FieldDescriptor* field,
                                         absl::string_view resolved_field_name,
                                         absl::string_view resolved_upbc_name,
-                                        Context& ctx) {
-  ctx.EmitLegacy(
+                                        Output& output) {
+  output(
       R"cc(
         inline size_t $1_size() const {
           size_t len;
@@ -81,22 +80,15 @@ void WriteRepeatedFieldsInMessageHeader(const protobuf::Descriptor* desc,
           return len;
         }
       )cc",
-      upb::generator::CApiMessageType(desc->full_name()), resolved_field_name,
-      resolved_upbc_name);
+      MessageName(desc), resolved_field_name, resolved_upbc_name);
 
   if (field->cpp_type() == protobuf::FieldDescriptor::CPPTYPE_MESSAGE) {
-    ctx.EmitLegacy(
+    output(
         R"cc(
           $1 $2(size_t index) const;
-          const ::hpb::RepeatedField<const $4>::CProxy $2() const;
-          ::hpb::Ptr<::hpb::RepeatedField<$4>> mutable_$2();
+          const ::protos::RepeatedField<const $4>::CProxy $2() const;
+          ::protos::Ptr<::protos::RepeatedField<$4>> mutable_$2();
           absl::StatusOr<$0> add_$2();
-          /**
-           * Re-points submsg of repeated field to given target.
-           *
-           * REQUIRES: both messages must be in the same arena.
-           */
-          bool add_alias_$2($0 target);
           $0 mutable_$2(size_t index) const;
         )cc",
         MessagePtrConstType(field, /* const */ false),   // $0
@@ -106,22 +98,22 @@ void WriteRepeatedFieldsInMessageHeader(const protobuf::Descriptor* desc,
         MessageBaseType(field, /* maybe_const */ false)  // $4
     );
   } else if (field->cpp_type() == protobuf::FieldDescriptor::CPPTYPE_STRING) {
-    ctx.EmitLegacy(
+    output(
         R"cc(
           $0 $1(size_t index) const;
-          const ::hpb::RepeatedField<$0>::CProxy $1() const;
-          ::hpb::Ptr<::hpb::RepeatedField<$0>> mutable_$1();
+          const ::protos::RepeatedField<$0>::CProxy $1() const;
+          ::protos::Ptr<::protos::RepeatedField<$0>> mutable_$1();
           bool add_$1($0 val);
           void set_$1(size_t index, $0 val);
           bool resize_$1(size_t len);
         )cc",
         CppConstType(field), resolved_field_name);
   } else {
-    ctx.EmitLegacy(
+    output(
         R"cc(
           $0 $1(size_t index) const;
-          const ::hpb::RepeatedField<$0>::CProxy $1() const;
-          ::hpb::Ptr<::hpb::RepeatedField<$0>> mutable_$1();
+          const ::protos::RepeatedField<$0>::CProxy $1() const;
+          ::protos::Ptr<::protos::RepeatedField<$0>> mutable_$1();
           bool add_$1($0 val);
           void set_$1(size_t index, $0 val);
           bool resize_$1(size_t len);
@@ -130,165 +122,150 @@ void WriteRepeatedFieldsInMessageHeader(const protobuf::Descriptor* desc,
   }
 }
 
-void WriteRepeatedMessageAccessor(const protobuf::Descriptor* desc,
+void WriteRepeatedMessageAccessor(const protobuf::Descriptor* message,
                                   const protobuf::FieldDescriptor* field,
                                   const absl::string_view resolved_field_name,
                                   const absl::string_view class_name,
-                                  Context& ctx) {
+                                  Output& output) {
   const char arena_expression[] = "arena_";
   absl::string_view upbc_name = field->name();
-  ctx.EmitLegacy(
+  output(
       R"cc(
         $1 $0::$2(size_t index) const {
           size_t len;
           auto* ptr = $3_$5(msg_, &len);
           assert(index < len);
-          return ::hpb::interop::upb::MakeCHandle<$4>(
+          return ::protos::internal::CreateMessage<$4>(
               (upb_Message*)*(ptr + index), arena_);
         }
       )cc",
       class_name, MessagePtrConstType(field, /* is_const */ true),
-      resolved_field_name, upb::generator::CApiMessageType(desc->full_name()),
+      resolved_field_name, MessageName(message),
       MessageBaseType(field, /* maybe_const */ false), upbc_name);
-  ctx.EmitLegacy(
+  output(
       R"cc(
         absl::StatusOr<$1> $0::add_$2() {
           auto new_msg = $3_add_$6(msg_, $5);
           if (!new_msg) {
-            return ::hpb::MessageAllocationError();
+            return ::protos::MessageAllocationError();
           }
-          return hpb::interop::upb::MakeHandle<$4>((upb_Message *)new_msg, $5);
-        }
-
-        bool $0::add_alias_$2($1 target) {
-          ABSL_CHECK_EQ(arena_, hpb::interop::upb::GetArena(target));
-          size_t size = 0;
-          $3_$2(msg_, &size);
-          auto elements = $3_resize_$2(msg_, size + 1, arena_);
-          if (!elements) {
-            return false;
-          }
-          elements[size] = ($9 *)hpb::interop::upb::GetMessage(target);
-          return true;
+          return ::protos::internal::CreateMessageProxy<$4>((upb_Message*)new_msg, $5);
         }
       )cc",
       class_name, MessagePtrConstType(field, /* const */ false),
-      resolved_field_name, upb::generator::CApiMessageType(desc->full_name()),
+      resolved_field_name, MessageName(message),
       MessageBaseType(field, /* maybe_const */ false), arena_expression,
-      upbc_name, ClassName(desc), field->index(),
-      upb::generator::CApiMessageType(field->message_type()->full_name()));
-  ctx.EmitLegacy(
+      upbc_name);
+  output(
       R"cc(
         $1 $0::mutable_$2(size_t index) const {
           size_t len;
           auto* ptr = $3_$6(msg_, &len);
           assert(index < len);
-          return hpb::interop::upb::MakeHandle<$4>((upb_Message*)*(ptr + index), $5);
+          return ::protos::internal::CreateMessageProxy<$4>(
+              (upb_Message*)*(ptr + index), $5);
         }
       )cc",
       class_name, MessagePtrConstType(field, /* is_const */ false),
-      resolved_field_name, upb::generator::CApiMessageType(desc->full_name()),
+      resolved_field_name, MessageName(message),
       MessageBaseType(field, /* maybe_const */ false), arena_expression,
       upbc_name);
-  ctx.EmitLegacy(
+  output(
       R"cc(
-        const ::hpb::RepeatedField<const $1>::CProxy $0::$2() const {
+        const ::protos::RepeatedField<const $1>::CProxy $0::$2() const {
           size_t size;
           const upb_Array* arr = _$3_$4_$5(msg_, &size);
-          return ::hpb::RepeatedField<const $1>::CProxy(arr, arena_);
+          return ::protos::RepeatedField<const $1>::CProxy(arr, arena_);
         };
-        ::hpb::Ptr<::hpb::RepeatedField<$1>> $0::mutable_$2() {
+        ::protos::Ptr<::protos::RepeatedField<$1>> $0::mutable_$2() {
           size_t size;
           upb_Array* arr = _$3_$4_$6(msg_, &size, arena_);
-          return ::hpb::RepeatedField<$1>::Proxy(arr, arena_);
+          return ::protos::RepeatedField<$1>::Proxy(arr, arena_);
         }
       )cc",
       class_name,                                              // $0
       MessageBaseType(field, /* maybe_const */ false),         // $1
       resolved_field_name,                                     // $2
-      upb::generator::CApiMessageType(desc->full_name()),      // $3
+      MessageName(message),                                    // $3
       upbc_name,                                               // $4
       upb::generator::kRepeatedFieldArrayGetterPostfix,        // $5
       upb::generator::kRepeatedFieldMutableArrayGetterPostfix  // $6
   );
 }
 
-void WriteRepeatedStringAccessor(const protobuf::Descriptor* desc,
+void WriteRepeatedStringAccessor(const protobuf::Descriptor* message,
                                  const protobuf::FieldDescriptor* field,
                                  const absl::string_view resolved_field_name,
                                  const absl::string_view class_name,
-                                 Context& ctx) {
+                                 Output& output) {
   absl::string_view upbc_name = field->name();
-  ctx.EmitLegacy(
+  output(
       R"cc(
         $1 $0::$2(size_t index) const {
           size_t len;
           auto* ptr = $3_mutable_$4(msg_, &len);
           assert(index < len);
-          return hpb::interop::upb::FromUpbStringView(*(ptr + index));
+          return ::protos::UpbStrToStringView(*(ptr + index));
         }
       )cc",
       class_name, CppConstType(field), resolved_field_name,
-      upb::generator::CApiMessageType(desc->full_name()), upbc_name);
-  ctx.EmitLegacy(
+      MessageName(message), upbc_name);
+  output(
       R"cc(
         bool $0::resize_$1(size_t len) {
           return $2_resize_$3(msg_, len, arena_);
         }
       )cc",
-      class_name, resolved_field_name,
-      upb::generator::CApiMessageType(desc->full_name()), upbc_name);
-  ctx.EmitLegacy(
+      class_name, resolved_field_name, MessageName(message), upbc_name);
+  output(
       R"cc(
         bool $0::add_$2($1 val) {
-          return $3_add_$4(msg_,
-                           hpb::interop::upb::CopyToUpbStringView(val, arena_),
-                           arena_);
+          return $3_add_$4(msg_, ::protos::UpbStrFromStringView(val, arena_), arena_);
         }
       )cc",
       class_name, CppConstType(field), resolved_field_name,
-      upb::generator::CApiMessageType(desc->full_name()), upbc_name);
-  ctx.EmitLegacy(
+      MessageName(message), upbc_name);
+  output(
       R"cc(
         void $0::set_$2(size_t index, $1 val) {
           size_t len;
           auto* ptr = $3_mutable_$4(msg_, &len);
           assert(index < len);
-          *(ptr + index) = hpb::interop::upb::CopyToUpbStringView(val, arena_);
+          *(ptr + index) = ::protos::UpbStrFromStringView(val, arena_);
         }
       )cc",
       class_name, CppConstType(field), resolved_field_name,
-      upb::generator::CApiMessageType(desc->full_name()), upbc_name);
-  ctx.EmitLegacy(
+      MessageName(message), upbc_name);
+  output(
       R"cc(
-        const ::hpb::RepeatedField<$1>::CProxy $0::$2() const {
+        const ::protos::RepeatedField<$1>::CProxy $0::$2() const {
           size_t size;
           const upb_Array* arr = _$3_$4_$5(msg_, &size);
-          return ::hpb::RepeatedField<$1>::CProxy(arr, arena_);
+          return ::protos::RepeatedField<$1>::CProxy(arr, arena_);
         };
-        ::hpb::Ptr<::hpb::RepeatedField<$1>> $0::mutable_$2() {
+        ::protos::Ptr<::protos::RepeatedField<$1>> $0::mutable_$2() {
           size_t size;
           upb_Array* arr = _$3_$4_$6(msg_, &size, arena_);
-          return ::hpb::RepeatedField<$1>::Proxy(arr, arena_);
+          return ::protos::RepeatedField<$1>::Proxy(arr, arena_);
         }
       )cc",
       class_name,                                              // $0
       CppConstType(field),                                     // $1
       resolved_field_name,                                     // $2
-      upb::generator::CApiMessageType(desc->full_name()),      // $3
+      MessageName(message),                                    // $3
       upbc_name,                                               // $4
       upb::generator::kRepeatedFieldArrayGetterPostfix,        // $5
       upb::generator::kRepeatedFieldMutableArrayGetterPostfix  // $6
   );
 }
 
-void WriteRepeatedScalarAccessor(const protobuf::Descriptor* desc,
+void WriteRepeatedScalarAccessor(const protobuf::Descriptor* message,
                                  const protobuf::FieldDescriptor* field,
                                  const absl::string_view resolved_field_name,
                                  const absl::string_view class_name,
-                                 Context& ctx) {
+                                 Output& output) {
   absl::string_view upbc_name = field->name();
-  ctx.EmitLegacy(
+  output(
       R"cc(
         $1 $0::$2(size_t index) const {
           size_t len;
@@ -298,22 +275,21 @@ void WriteRepeatedScalarAccessor(const protobuf::Descriptor* desc,
         }
       )cc",
       class_name, CppConstType(field), resolved_field_name,
-      upb::generator::CApiMessageType(desc->full_name()), upbc_name);
-  ctx.EmitLegacy(
+      MessageName(message), upbc_name);
+  output(
       R"cc(
         bool $0::resize_$1(size_t len) {
           return $2_resize_$3(msg_, len, arena_);
         }
       )cc",
-      class_name, resolved_field_name,
-      upb::generator::CApiMessageType(desc->full_name()), upbc_name);
-  ctx.EmitLegacy(
+      class_name, resolved_field_name, MessageName(message), upbc_name);
+  output(
       R"cc(
         bool $0::add_$2($1 val) { return $3_add_$4(msg_, val, arena_); }
       )cc",
       class_name, CppConstType(field), resolved_field_name,
-      upb::generator::CApiMessageType(desc->full_name()), upbc_name);
-  ctx.EmitLegacy(
+      MessageName(message), upbc_name);
+  output(
       R"cc(
         void $0::set_$2(size_t index, $1 val) {
           size_t len;
@@ -323,24 +299,24 @@ void WriteRepeatedScalarAccessor(const protobuf::Descriptor* desc,
         }
       )cc",
       class_name, CppConstType(field), resolved_field_name,
-      upb::generator::CApiMessageType(desc->full_name()), upbc_name);
-  ctx.EmitLegacy(
+      MessageName(message), upbc_name);
+  output(
       R"cc(
-        const ::hpb::RepeatedField<$1>::CProxy $0::$2() const {
+        const ::protos::RepeatedField<$1>::CProxy $0::$2() const {
           size_t size;
           const upb_Array* arr = _$3_$4_$5(msg_, &size);
-          return ::hpb::RepeatedField<$1>::CProxy(arr, arena_);
+          return ::protos::RepeatedField<$1>::CProxy(arr, arena_);
         };
-        ::hpb::Ptr<::hpb::RepeatedField<$1>> $0::mutable_$2() {
+        ::protos::Ptr<::protos::RepeatedField<$1>> $0::mutable_$2() {
           size_t size;
           upb_Array* arr = _$3_$4_$6(msg_, &size, arena_);
-          return ::hpb::RepeatedField<$1>::Proxy(arr, arena_);
+          return ::protos::RepeatedField<$1>::Proxy(arr, arena_);
         }
       )cc",
       class_name,                                              // $0
       CppConstType(field),                                     // $1
       resolved_field_name,                                     // $2
-      upb::generator::CApiMessageType(desc->full_name()),      // $3
+      MessageName(message),                                    // $3
       upbc_name,                                               // $4
       upb::generator::kRepeatedFieldArrayGetterPostfix,        // $5
       upb::generator::kRepeatedFieldMutableArrayGetterPostfix  // $6

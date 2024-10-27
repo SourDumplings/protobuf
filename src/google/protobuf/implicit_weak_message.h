@@ -47,14 +47,21 @@ class PROTOBUF_EXPORT ImplicitWeakMessage final : public MessageLite {
 
   // TODO: make this constructor private
   explicit ImplicitWeakMessage(Arena* arena)
-      : MessageLite(arena, class_data_.base()),
-        data_(Arena::Create<std::string>(arena)) {}
+      : MessageLite(arena, class_data_.base()), data_(new std::string) {}
 
-  ~ImplicitWeakMessage() PROTOBUF_FINAL { delete data_; }
+  ~ImplicitWeakMessage() PROTOBUF_FINAL {
+    // data_ will be null in the default instance, but we can safely call delete
+    // here because the default instance will never be destroyed.
+    delete data_;
+  }
 
   static const ImplicitWeakMessage& default_instance();
 
   const ClassData* GetClassData() const PROTOBUF_FINAL;
+
+  MessageLite* New(Arena* arena) const PROTOBUF_FINAL {
+    return Arena::Create<ImplicitWeakMessage>(arena);
+  }
 
   void Clear() PROTOBUF_FINAL { data_->clear(); }
 
@@ -73,8 +80,7 @@ class PROTOBUF_EXPORT ImplicitWeakMessage final : public MessageLite {
                             target);
   }
 
-  using InternalArenaConstructable_ = void;
-  using DestructorSkippable_ = void;
+  typedef void InternalArenaConstructable_;
 
   static PROTOBUF_CC const char* ParseImpl(ImplicitWeakMessage* msg,
                                            const char* ptr, ParseContext* ctx);
@@ -85,9 +91,10 @@ class PROTOBUF_EXPORT ImplicitWeakMessage final : public MessageLite {
 
   static void MergeImpl(MessageLite&, const MessageLite&);
 
-  static void DestroyImpl(MessageLite& msg) {
-    static_cast<ImplicitWeakMessage&>(msg).~ImplicitWeakMessage();
+  static void ClearImpl(MessageLite& msg) {
+    static_cast<ImplicitWeakMessage&>(msg).Clear();
   }
+
   static size_t ByteSizeLongImpl(const MessageLite& msg) {
     return static_cast<const ImplicitWeakMessage&>(msg).ByteSizeLong();
   }
@@ -103,7 +110,7 @@ class PROTOBUF_EXPORT ImplicitWeakMessage final : public MessageLite {
   // the default instance can be constant-initialized. In the const methods, we
   // have to handle the possibility of data_ being null.
   std::string* data_;
-  google::protobuf::internal::CachedSize cached_size_{};
+  mutable google::protobuf::internal::CachedSize cached_size_{};
 };
 
 struct ImplicitWeakMessageDefaultType;
@@ -210,11 +217,6 @@ struct WeakRepeatedPtrField {
   union {
     RepeatedPtrField<T> weak;
   };
-
-  static constexpr size_t InternalGetArenaOffset(
-      internal::InternalVisibility visibility) {
-    return decltype(weak)::InternalGetArenaOffset(visibility);
-  }
 
  private:
   WeakRepeatedPtrField(Arena* arena, const WeakRepeatedPtrField& rhs)

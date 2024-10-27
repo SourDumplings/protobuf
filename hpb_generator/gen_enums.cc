@@ -13,10 +13,9 @@
 #include <vector>
 
 #include "google/protobuf/descriptor.pb.h"
-#include "google/protobuf/compiler/hpb/context.h"
+#include "google/protobuf/descriptor.h"
 #include "google/protobuf/compiler/hpb/gen_utils.h"
 #include "google/protobuf/compiler/hpb/names.h"
-#include "google/protobuf/descriptor.h"
 
 namespace google::protobuf::hpb_generator {
 
@@ -79,7 +78,7 @@ std::string EnumValueSymbolInNameSpace(
   }
 }
 
-void WriteEnumValues(const protobuf::EnumDescriptor* desc, Context& ctx) {
+void WriteEnumValues(const protobuf::EnumDescriptor* desc, Output& output) {
   std::vector<const protobuf::EnumValueDescriptor*> values;
   auto value_count = desc->value_count();
   values.reserve(value_count);
@@ -94,21 +93,28 @@ void WriteEnumValues(const protobuf::EnumDescriptor* desc, Context& ctx) {
 
   for (size_t i = 0; i < values.size(); i++) {
     auto value = values[i];
-    ctx.EmitLegacy("  $0", EnumValueSymbolInNameSpace(desc, value));
-    ctx.EmitLegacy(" = $0", EnumInt32ToString(value->number()));
+    output("  $0", EnumValueSymbolInNameSpace(desc, value));
+    output(" = $0", EnumInt32ToString(value->number()));
     if (i != values.size() - 1) {
-      ctx.Emit(",");
+      output(",");
     }
-    ctx.Emit("\n");
+    output("\n");
   }
 }
 
 void WriteEnumDeclarations(
-    const std::vector<const protobuf::EnumDescriptor*>& enums, Context& ctx) {
+    const std::vector<const protobuf::EnumDescriptor*>& enums, Output& output) {
   for (auto enumdesc : enums) {
-    ctx.EmitLegacy("enum $0 : int {\n", EnumTypeName(enumdesc));
-    WriteEnumValues(enumdesc, ctx);
-    ctx.Emit("};\n\n");
+    output("enum $0 : int {\n", EnumTypeName(enumdesc));
+    WriteEnumValues(enumdesc, output);
+    output("};\n\n");
+  }
+}
+
+void WriteHeaderEnumForwardDecls(
+    std::vector<const protobuf::EnumDescriptor*>& enums, Output& output) {
+  for (const auto* enumdesc : enums) {
+    output("enum $0 : int;\n", EnumTypeName(enumdesc));
   }
 }
 

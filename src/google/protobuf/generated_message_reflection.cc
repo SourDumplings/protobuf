@@ -33,7 +33,6 @@
 #include "absl/synchronization/mutex.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/descriptor.pb.h"
-#include "google/protobuf/descriptor_lite.h"
 #include "google/protobuf/extension_set.h"
 #include "google/protobuf/generated_message_tctable_decl.h"
 #include "google/protobuf/generated_message_tctable_gen.h"
@@ -79,6 +78,7 @@ namespace protobuf {
 namespace {
 bool IsMapFieldInApi(const FieldDescriptor* field) { return field->is_map(); }
 
+#ifdef PROTOBUF_FORCE_COPY_IN_RELEASE
 Message* MaybeForceCopy(Arena* arena, Message* msg) {
   if (arena != nullptr || msg == nullptr) return msg;
 
@@ -87,6 +87,7 @@ Message* MaybeForceCopy(Arena* arena, Message* msg) {
   delete msg;
   return copy;
 }
+#endif  // PROTOBUF_FORCE_COPY_IN_RELEASE
 }  // anonymous namespace
 
 namespace internal {
@@ -112,7 +113,7 @@ bool ParseNamedEnum(const EnumDescriptor* descriptor, absl::string_view name,
 
 const std::string& NameOfEnum(const EnumDescriptor* descriptor, int value) {
   const EnumValueDescriptor* d = descriptor->FindValueByNumber(value);
-  return (d == nullptr ? GetEmptyString() : internal::NameOfEnumAsString(d));
+  return (d == nullptr ? GetEmptyString() : d->name());
 }
 
 // Internal helper routine for NameOfDenseEnum in the header file.
@@ -130,7 +131,7 @@ const std::string** MakeDenseEnumCache(const EnumDescriptor* desc, int min_val,
     if (str_ptrs[num - min_val] == nullptr) {
       // Don't over-write an existing entry, because in case of duplication, the
       // first one wins.
-      str_ptrs[num - min_val] = &internal::NameOfEnumAsString(desc->value(i));
+      str_ptrs[num - min_val] = &desc->value(i)->name();
     }
   }
   // Change any unfilled entries to point to the empty string.
@@ -161,17 +162,6 @@ PROTOBUF_NOINLINE const std::string& NameOfDenseEnumSlow(
     delete[] new_cache;
     return *old_cache[v - deci->min_val];
   }
-}
-
-bool IsMatchingCType(const FieldDescriptor* field, int ctype) {
-  switch (field->cpp_string_type()) {
-    case FieldDescriptor::CppStringType::kCord:
-      return ctype == FieldOptions::CORD;
-    case FieldDescriptor::CppStringType::kView:
-    case FieldDescriptor::CppStringType::kString:
-      return ctype == FieldOptions::STRING;
-  }
-  internal::Unreachable();
 }
 
 }  // namespace internal
@@ -356,20 +346,17 @@ bool Reflection::IsLazyExtension(const Message& message,
 }
 
 bool Reflection::IsLazilyVerifiedLazyField(const FieldDescriptor* field) const {
-  if (field->type() != FieldDescriptor::TYPE_MESSAGE || field->is_repeated()) {
-    return false;
-  }
-  return field->options().unverified_lazy();
+  if (field->options().unverified_lazy()) return true;
+
+  // Message fields with [lazy=true] will be eagerly verified
+  // (go/verified-lazy).
+  return field->options().lazy() && !IsEagerlyVerifiedLazyField(field);
 }
 
 bool Reflection::IsEagerlyVerifiedLazyField(
     const FieldDescriptor* field) const {
-  if (field->type() != FieldDescriptor::TYPE_MESSAGE) return false;
-
-  // Message fields with [lazy=true] will be eagerly verified
-  // (go/verified-lazy).
-  if (field->options().lazy() && !field->is_repeated()) return true;
-  return schema_.IsEagerlyVerifiedLazyField(field);
+  return (field->type() == FieldDescriptor::TYPE_MESSAGE &&
+          schema_.IsEagerlyVerifiedLazyField(field));
 }
 
 internal::field_layout::TransformValidation Reflection::GetLazyStyle(
@@ -512,19 +499,19 @@ size_t Reflection::SpaceUsedLong(const Message& message) const {
       }
     }
   }
-  if (internal::DebugHardenFuzzMessageSpaceUsedLong()) {
-    // Use both `this` and `dummy` to generate the seed so that the scale factor
-    // is both per-object and non-predictable, but consistent across multiple
-    // calls in the same binary.
-    static bool dummy;
-    uintptr_t seed =
-        reinterpret_cast<uintptr_t>(&dummy) ^ reinterpret_cast<uintptr_t>(this);
-    // Fuzz the size by +/- 50%.
-    double scale = (static_cast<double>(seed % 10000) / 10000) + 0.5;
-    return total_size * scale;
-  } else {
-    return total_size;
-  }
+#ifndef PROTOBUF_FUZZ_MESSAGE_SPACE_USED_LONG
+  return total_size;
+#else
+  // Use both `this` and `dummy` to generate the seed so that the scale factor
+  // is both per-object and non-predictable, but consistent across multiple
+  // calls in the same binary.
+  static bool dummy;
+  uintptr_t seed =
+      reinterpret_cast<uintptr_t>(&dummy) ^ reinterpret_cast<uintptr_t>(this);
+  // Fuzz the size by +/- 50%.
+  double scale = (static_cast<double>(seed % 10000) / 10000) + 0.5;
+  return total_size * scale;
+#endif
 }
 
 namespace {
@@ -804,25 +791,29 @@ void SwapFieldHelper::SwapMessage(const Reflection* r, Message* lhs,
 
   if (*lhs_sub == *rhs_sub) return;
 
-  if (internal::CanUseInternalSwap(lhs_arena, rhs_arena)) {
+#ifdef PROTOBUF_FORCE_COPY_IN_SWAP
+  if (lhs_arena != nullptr && lhs_arena == rhs_arena) {
+#else   // PROTOBUF_FORCE_COPY_IN_SWAP
+  if (lhs_arena == rhs_arena) {
+#endif  // !PROTOBUF_FORCE_COPY_IN_SWAP
     std::swap(*lhs_sub, *rhs_sub);
     return;
   }
 
   if (*lhs_sub != nullptr && *rhs_sub != nullptr) {
     (*lhs_sub)->GetReflection()->Swap(*lhs_sub, *rhs_sub);
-  } else if (*lhs_sub == nullptr && r->HasFieldSingular(*rhs, field)) {
+  } else if (*lhs_sub == nullptr && r->HasBit(*rhs, field)) {
     *lhs_sub = (*rhs_sub)->New(lhs_arena);
     (*lhs_sub)->CopyFrom(**rhs_sub);
     r->ClearField(rhs, field);
     // Ensures has bit is unchanged after ClearField.
-    r->SetHasBit(rhs, field);
-  } else if (*rhs_sub == nullptr && r->HasFieldSingular(*lhs, field)) {
+    r->SetBit(rhs, field);
+  } else if (*rhs_sub == nullptr && r->HasBit(*lhs, field)) {
     *rhs_sub = (*lhs_sub)->New(rhs_arena);
     (*rhs_sub)->CopyFrom(**lhs_sub);
     r->ClearField(lhs, field);
     // Ensures has bit is unchanged after ClearField.
-    r->SetHasBit(lhs, field);
+    r->SetBit(lhs, field);
   }
 }
 
@@ -1105,7 +1096,11 @@ void Reflection::Swap(Message* lhs, Message* rhs) const {
 
   // Check that both messages are in the same arena (or both on the heap). We
   // need to copy all data if not, due to ownership semantics.
-  if (!internal::CanUseInternalSwap(lhs_arena, rhs_arena)) {
+#ifdef PROTOBUF_FORCE_COPY_IN_SWAP
+  if (lhs_arena == nullptr || lhs_arena != rhs_arena) {
+#else   // PROTOBUF_FORCE_COPY_IN_SWAP
+  if (lhs_arena != rhs_arena) {
+#endif  // !PROTOBUF_FORCE_COPY_IN_SWAP
     // One of the two is guaranteed to have an arena.  Switch things around
     // to guarantee that lhs has an arena.
     Arena* arena = lhs_arena;
@@ -1117,12 +1112,12 @@ void Reflection::Swap(Message* lhs, Message* rhs) const {
     Message* temp = lhs->New(arena);
     temp->MergeFrom(*rhs);
     rhs->CopyFrom(*lhs);
-    if (internal::DebugHardenForceCopyInSwap()) {
-      lhs->CopyFrom(*temp);
-      if (arena == nullptr) delete temp;
-    } else {
-      Swap(lhs, temp);
-    }
+#ifdef PROTOBUF_FORCE_COPY_IN_SWAP
+    lhs->CopyFrom(*temp);
+    if (arena == nullptr) delete temp;
+#else   // PROTOBUF_FORCE_COPY_IN_SWAP
+    Swap(lhs, temp);
+#endif  // !PROTOBUF_FORCE_COPY_IN_SWAP
     return;
   }
 
@@ -1186,7 +1181,7 @@ void Reflection::SwapFieldsImpl(
         // oneof already. This has to be done after SwapField, because SwapField
         // may depend on the information in has bits.
         if (!field->is_repeated()) {
-          SwapHasBit(message1, message2, field);
+          SwapBit(message1, message2, field);
           if (field->cpp_type() == FieldDescriptor::CPPTYPE_STRING &&
               field->cpp_string_type() ==
                   FieldDescriptor::CppStringType::kString &&
@@ -1244,7 +1239,7 @@ bool Reflection::HasField(const Message& message,
     if (schema_.InRealOneof(field)) {
       return HasOneofField(message, field);
     } else {
-      return HasFieldSingular(message, field);
+      return HasBit(message, field);
     }
   }
 }
@@ -1330,53 +1325,7 @@ void Reflection::InternalSwap(Message* lhs, Message* rhs) const {
 }
 
 void Reflection::MaybePoisonAfterClear(Message& root) const {
-  struct MemBlock {
-    explicit MemBlock(Message& msg)
-        : ptr(static_cast<void*>(&msg)), size(GetSize(msg)) {}
-
-    static uint32_t GetSize(const Message& msg) {
-      return msg.GetReflection()->schema_.GetObjectSize();
-    }
-
-    void* ptr;
-    uint32_t size;
-  };
-
-  bool heap_alloc = root.GetArena() == nullptr;
-  std::vector<MemBlock> nodes;
-
-#ifdef __cpp_if_constexpr
-  nodes.emplace_back(root);
-
-  std::queue<Message*> queue;
-  queue.push(&root);
-
-  while (!queue.empty() && !heap_alloc) {
-    Message* curr = queue.front();
-    queue.pop();
-    internal::VisitMutableMessageFields(*curr, [&](Message& msg) {
-      if (msg.GetArena() == nullptr) {
-        heap_alloc = true;
-        return;
-      }
-
-      nodes.emplace_back(msg);
-      // Also visits child messages.
-      queue.push(&msg);
-    });
-  }
-#endif
-
   root.Clear();
-
-  // Heap allocated oneof messages will be freed on clear. So, poisoning
-  // afterwards may cause use-after-free. Bailout.
-  if (heap_alloc) return;
-
-  for (auto it : nodes) {
-    (void)it;
-    PROTOBUF_POISON_MEMORY_REGION(it.ptr, it.size);
-  }
 }
 
 int Reflection::FieldSize(const Message& message,
@@ -1441,8 +1390,8 @@ void Reflection::ClearField(Message* message,
       ClearOneofField(message, field);
       return;
     }
-    if (HasFieldSingular(*message, field)) {
-      ClearHasBit(message, field);
+    if (HasBit(*message, field)) {
+      ClearBit(message, field);
 
       // We need to set the field back to its default value.
       switch (field->cpp_type()) {
@@ -1620,11 +1569,11 @@ Message* Reflection::ReleaseLast(Message* message,
                      ->ReleaseLast<GenericTypeHandler<Message>>();
     }
   }
-  if (internal::DebugHardenForceCopyInRelease()) {
-    return MaybeForceCopy(message->GetArena(), released);
-  } else {
-    return released;
-  }
+#ifdef PROTOBUF_FORCE_COPY_IN_RELEASE
+  return MaybeForceCopy(message->GetArena(), released);
+#else   // PROTOBUF_FORCE_COPY_IN_RELEASE
+  return released;
+#endif  // !PROTOBUF_FORCE_COPY_IN_RELEASE
 }
 
 Message* Reflection::UnsafeArenaReleaseLast(
@@ -1765,12 +1714,11 @@ void Reflection::ListFields(const Message& message,
           append_to_output(field);
         }
       } else if (has_bits && has_bits_indices[i] != static_cast<uint32_t>(-1)) {
-        // Equivalent to: HasFieldSingular(message, field)
+        // Equivalent to: HasBit(message, field)
         if (IsIndexInHasBitSet(has_bits, has_bits_indices[i])) {
           append_to_output(field);
         }
-      } else if (HasFieldSingular(message, field)) {
-        // Fall back on proto3-style HasBit.
+      } else if (HasBit(message, field)) {  // Fall back on proto3-style HasBit.
         append_to_output(field);
       }
     }
@@ -1879,11 +1827,11 @@ std::string Reflection::GetString(const Message& message,
                                   const FieldDescriptor* field) const {
   USAGE_CHECK_ALL(GetString, SINGULAR, STRING);
   if (field->is_extension()) {
-    return GetExtensionSet(message).GetString(
-        field->number(), internal::DefaultValueStringAsString(field));
+    return GetExtensionSet(message).GetString(field->number(),
+                                              field->default_value_string());
   } else {
     if (schema_.InRealOneof(field) && !HasOneofField(message, field)) {
-      return std::string(field->default_value_string());
+      return field->default_value_string();
     }
     switch (field->cpp_string_type()) {
       case FieldDescriptor::CppStringType::kCord:
@@ -1898,8 +1846,7 @@ std::string Reflection::GetString(const Message& message,
           return GetField<InlinedStringField>(message, field).GetNoArena();
         } else {
           const auto& str = GetField<ArenaStringPtr>(message, field);
-          return str.IsDefault() ? std::string(field->default_value_string())
-                                 : str.Get();
+          return str.IsDefault() ? field->default_value_string() : str.Get();
         }
     }
     internal::Unreachable();
@@ -1912,11 +1859,11 @@ const std::string& Reflection::GetStringReference(const Message& message,
   (void)scratch;  // Parameter is used by Google-internal code.
   USAGE_CHECK_ALL(GetStringReference, SINGULAR, STRING);
   if (field->is_extension()) {
-    return GetExtensionSet(message).GetString(
-        field->number(), internal::DefaultValueStringAsString(field));
+    return GetExtensionSet(message).GetString(field->number(),
+                                              field->default_value_string());
   } else {
     if (schema_.InRealOneof(field) && !HasOneofField(message, field)) {
-      return internal::DefaultValueStringAsString(field);
+      return field->default_value_string();
     }
     switch (field->cpp_string_type()) {
       case FieldDescriptor::CppStringType::kCord:
@@ -1933,8 +1880,7 @@ const std::string& Reflection::GetStringReference(const Message& message,
           return GetField<InlinedStringField>(message, field).GetNoArena();
         } else {
           const auto& str = GetField<ArenaStringPtr>(message, field);
-          return str.IsDefault() ? internal::DefaultValueStringAsString(field)
-                                 : str.Get();
+          return str.IsDefault() ? field->default_value_string() : str.Get();
         }
     }
     internal::Unreachable();
@@ -1946,7 +1892,7 @@ absl::Cord Reflection::GetCord(const Message& message,
   USAGE_CHECK_ALL(GetCord, SINGULAR, STRING);
   if (field->is_extension()) {
     return absl::Cord(GetExtensionSet(message).GetString(
-        field->number(), internal::DefaultValueStringAsString(field)));
+        field->number(), field->default_value_string()));
   } else {
     if (schema_.InRealOneof(field) && !HasOneofField(message, field)) {
       return absl::Cord(field->default_value_string());
@@ -1979,8 +1925,8 @@ absl::string_view Reflection::GetStringView(const Message& message,
   USAGE_CHECK_ALL(GetStringView, SINGULAR, STRING);
 
   if (field->is_extension()) {
-    return GetExtensionSet(message).GetString(
-        field->number(), internal::DefaultValueStringAsString(field));
+    return GetExtensionSet(message).GetString(field->number(),
+                                              field->default_value_string());
   }
   if (schema_.InRealOneof(field) && !HasOneofField(message, field)) {
     return field->default_value_string();
@@ -2438,7 +2384,7 @@ Message* Reflection::MutableMessage(Message* message,
         *result_holder = default_message->New(message->GetArena());
       }
     } else {
-      SetHasBit(message, field);
+      SetBit(message, field);
     }
 
     if (*result_holder == nullptr) {
@@ -2472,9 +2418,9 @@ void Reflection::UnsafeArenaSetAllocatedMessage(
     }
 
     if (sub_message == nullptr) {
-      ClearHasBit(message, field);
+      ClearBit(message, field);
     } else {
-      SetHasBit(message, field);
+      SetBit(message, field);
     }
     Message** sub_message_holder = MutableRaw<Message*>(message, field);
     if (message->GetArena() == nullptr) {
@@ -2533,7 +2479,7 @@ Message* Reflection::UnsafeArenaReleaseMessage(Message* message,
                                                                 factory));
   } else {
     if (!(field->is_repeated() || schema_.InRealOneof(field))) {
-      ClearHasBit(message, field);
+      ClearBit(message, field);
     }
     if (schema_.InRealOneof(field)) {
       if (HasOneofField(*message, field)) {
@@ -2553,9 +2499,9 @@ Message* Reflection::ReleaseMessage(Message* message,
                                     const FieldDescriptor* field,
                                     MessageFactory* factory) const {
   Message* released = UnsafeArenaReleaseMessage(message, field, factory);
-  if (internal::DebugHardenForceCopyInRelease()) {
-    released = MaybeForceCopy(message->GetArena(), released);
-  }
+#ifdef PROTOBUF_FORCE_COPY_IN_RELEASE
+  released = MaybeForceCopy(message->GetArena(), released);
+#endif  // PROTOBUF_FORCE_COPY_IN_RELEASE
   if (message->GetArena() != nullptr && released != nullptr) {
     Message* copy_from_arena = released->New();
     copy_from_arena->CopyFrom(*released);
@@ -2692,7 +2638,6 @@ void* Reflection::MutableRawRepeatedField(Message* message,
                                           const Descriptor* desc) const {
   (void)ctype;  // Parameter is used by Google-internal code.
   USAGE_CHECK_REPEATED("MutableRawRepeatedField");
-  USAGE_CHECK_MESSAGE_TYPE(MutableRawRepeatedField);
 
   if (field->cpp_type() != cpptype &&
       (field->cpp_type() != FieldDescriptor::CPPTYPE_ENUM ||
@@ -2720,14 +2665,13 @@ const void* Reflection::GetRawRepeatedField(const Message& message,
                                             int ctype,
                                             const Descriptor* desc) const {
   USAGE_CHECK_REPEATED("GetRawRepeatedField");
-  USAGE_CHECK_MESSAGE_TYPE(GetRawRepeatedField);
   if (field->cpp_type() != cpptype &&
       (field->cpp_type() != FieldDescriptor::CPPTYPE_ENUM ||
        cpptype != FieldDescriptor::CPPTYPE_INT32))
     ReportReflectionUsageTypeError(descriptor_, field, "GetRawRepeatedField",
                                    cpptype);
   if (ctype >= 0)
-    ABSL_CHECK(IsMatchingCType(field, ctype)) << "subtype mismatch";
+    ABSL_CHECK_EQ(field->options().ctype(), ctype) << "subtype mismatch";
   if (desc != nullptr)
     ABSL_CHECK_EQ(field->message_type(), desc) << "wrong submessage type";
   if (field->is_extension()) {
@@ -3007,8 +2951,8 @@ void Reflection::SwapInlinedStringDonated(Message* lhs, Message* rhs,
 }
 
 // Simple accessors for manipulating has_bits_.
-bool Reflection::HasFieldSingular(const Message& message,
-                                  const FieldDescriptor* field) const {
+bool Reflection::HasBit(const Message& message,
+                        const FieldDescriptor* field) const {
   ABSL_DCHECK(!field->options().weak());
   if (schema_.HasBitIndex(field) != static_cast<uint32_t>(-1)) {
     return IsIndexInHasBitSet(GetHasBits(message), schema_.HasBitIndex(field));
@@ -3071,13 +3015,12 @@ bool Reflection::HasFieldSingular(const Message& message,
         // handled above; avoid warning
         break;
     }
-    ABSL_LOG(FATAL) << "Reached impossible case in HasFieldSingular().";
+    ABSL_LOG(FATAL) << "Reached impossible case in HasBit().";
     return false;
   }
 }
 
-void Reflection::SetHasBit(Message* message,
-                           const FieldDescriptor* field) const {
+void Reflection::SetBit(Message* message, const FieldDescriptor* field) const {
   ABSL_DCHECK(!field->options().weak());
   const uint32_t index = schema_.HasBitIndex(field);
   if (index == static_cast<uint32_t>(-1)) return;
@@ -3085,8 +3028,8 @@ void Reflection::SetHasBit(Message* message,
       (static_cast<uint32_t>(1) << (index % 32));
 }
 
-void Reflection::ClearHasBit(Message* message,
-                             const FieldDescriptor* field) const {
+void Reflection::ClearBit(Message* message,
+                          const FieldDescriptor* field) const {
   ABSL_DCHECK(!field->options().weak());
   const uint32_t index = schema_.HasBitIndex(field);
   if (index == static_cast<uint32_t>(-1)) return;
@@ -3094,22 +3037,22 @@ void Reflection::ClearHasBit(Message* message,
       ~(static_cast<uint32_t>(1) << (index % 32));
 }
 
-void Reflection::SwapHasBit(Message* message1, Message* message2,
-                            const FieldDescriptor* field) const {
+void Reflection::SwapBit(Message* message1, Message* message2,
+                         const FieldDescriptor* field) const {
   ABSL_DCHECK(!field->options().weak());
   if (!schema_.HasHasbits()) {
     return;
   }
-  bool temp_is_present = HasFieldSingular(*message1, field);
-  if (HasFieldSingular(*message2, field)) {
-    SetHasBit(message1, field);
+  bool temp_has_bit = HasBit(*message1, field);
+  if (HasBit(*message2, field)) {
+    SetBit(message1, field);
   } else {
-    ClearHasBit(message1, field);
+    ClearBit(message1, field);
   }
-  if (temp_is_present) {
-    SetHasBit(message2, field);
+  if (temp_has_bit) {
+    SetBit(message2, field);
   } else {
-    ClearHasBit(message2, field);
+    ClearBit(message2, field);
   }
 }
 
@@ -3237,14 +3180,14 @@ void Reflection::SetField(Message* message, const FieldDescriptor* field,
     ClearOneof(message, field->containing_oneof());
   }
   *MutableRaw<Type>(message, field) = value;
-  real_oneof ? SetOneofCase(message, field) : SetHasBit(message, field);
+  real_oneof ? SetOneofCase(message, field) : SetBit(message, field);
 }
 
 template <typename Type>
 Type* Reflection::MutableField(Message* message,
                                const FieldDescriptor* field) const {
   schema_.InRealOneof(field) ? SetOneofCase(message, field)
-                             : SetHasBit(message, field);
+                             : SetBit(message, field);
   return MutableRaw<Type>(message, field);
 }
 
@@ -3461,6 +3404,7 @@ void Reflection::PopulateTcParseFieldAux(
         break;
       case internal::TailCallTableInfo::kSubTable:
       case internal::TailCallTableInfo::kSubMessageWeak:
+      case internal::TailCallTableInfo::kCreateInArena:
       case internal::TailCallTableInfo::kMessageVerifyFunc:
       case internal::TailCallTableInfo::kSelfVerifyFunc:
         ABSL_LOG(FATAL) << "Not supported";

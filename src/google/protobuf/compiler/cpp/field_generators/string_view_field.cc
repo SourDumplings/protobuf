@@ -216,9 +216,17 @@ void SingularStringView::GenerateStaticMembers(io::Printer* p) const {
 }
 
 void SingularStringView::GenerateAccessorDeclarations(io::Printer* p) const {
-  auto v1 = p->WithVars(AnnotatedAccessors(field_, {""}));
+  auto vars = AnnotatedAccessors(field_, {"", "set_allocated_"});
+  vars.push_back(Sub{
+      "release_name",
+      SafeFunctionName(field_->containing_type(), field_, "release_"),
+  }
+                     .AnnotatedAs(field_));
+  auto v1 = p->WithVars(vars);
   auto v2 = p->WithVars(
       AnnotatedAccessors(field_, {"set_"}, AnnotationCollector::kSet));
+  auto v3 = p->WithVars(
+      AnnotatedAccessors(field_, {"mutable_"}, AnnotationCollector::kAlias));
 
   p->Emit(
       {{"donated",
@@ -295,6 +303,8 @@ void SingularStringView::GenerateInlineAccessorDefinitions(
                }
              )cc");
            }},
+          {"release_name",
+           SafeFunctionName(field_->containing_type(), field_, "release_")},
       },
       R"cc(
         inline absl::string_view $Msg$::$name$() const
@@ -433,9 +443,9 @@ void SingularStringView::GenerateConstructorCode(io::Printer* p) const {
 
   if (EmptyDefault()) {
     p->Emit(R"cc(
-      if ($pbi$::DebugHardenForceCopyDefaultString()) {
-        $field_$.Set("", GetArena());
-      }
+#ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+      $field_$.Set("", GetArena());
+#endif  // PROTOBUF_FORCE_COPY_DEFAULT_STRING
     )cc");
   }
 }
@@ -490,7 +500,7 @@ void SingularStringView::GenerateDestructorCode(io::Printer* p) const {
   }
 
   p->Emit(R"cc(
-    this_.$field_$.Destroy();
+    $field_$.Destroy();
   )cc");
 }
 
@@ -600,7 +610,7 @@ class RepeatedStringView : public FieldGeneratorBase {
   void GenerateDestructorCode(io::Printer* p) const override {
     if (should_split()) {
       p->Emit(R"cc(
-        this_.$field_$.DeleteIfNotDefault();
+        $field_$.DeleteIfNotDefault();
       )cc");
     }
   }
@@ -637,7 +647,8 @@ class RepeatedStringView : public FieldGeneratorBase {
 };
 
 void RepeatedStringView::GenerateAccessorDeclarations(io::Printer* p) const {
-  bool unknown_ctype = GetDeclaredStringType() != pb::CppFeatures::VIEW;
+  bool unknown_ctype =
+      field_->options().ctype() != internal::cpp::EffectiveStringCType(field_);
 
   if (unknown_ctype) {
     p->Emit(R"cc(
