@@ -36,6 +36,25 @@ ABSL_NAMESPACE_BEGIN
 bool HaveLeakSanitizer() { return true; }
 
 #if ABSL_HAVE_ATTRIBUTE_WEAK
+
+/**
+ * @brief Define this to solve complaints from Clang on MacOS Arm64
+ * Complaint:
+FAILED: external/protobuf/third_party/abseil-cpp/absl/debugging/libabsl_leak_check.2401.0.0.dylib 
+: && /opt/homebrew/opt/llvm@18/bin/clang++ -O0 -g -fsanitize=address -Wall -Wextra -fexceptions -fPIC -g -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -dynamiclib -Wl,-headerpad_max_install_names -compatibility_version 2401.0.0 -o external/protobuf/third_party/abseil-cpp/absl/debugging/libabsl_leak_check.2401.0.0.dylib -install_name @rpath/libabsl_leak_check.2401.0.0.dylib external/protobuf/third_party/abseil-cpp/absl/debugging/CMakeFiles/leak_check.dir/leak_check.cc.o   && :
+Undefined symbols for architecture arm64:
+  "___lsan_is_turned_off", referenced from:
+      absl::lts_20240116::LeakCheckerIsActive() in leak_check.cc.o
+      absl::lts_20240116::LeakCheckerIsActive() in leak_check.cc.o
+ld: symbol(s) not found for architecture arm64
+clang++: error: linker command failed with exit code 1 (use -v to see invocation)
+ * 
+ * @return int 
+ */
+int __lsan_is_turned_off() {
+  return 1;
+}
+
 bool LeakCheckerIsActive() {
   return !(&__lsan_is_turned_off && __lsan_is_turned_off());
 }
