@@ -849,6 +849,19 @@ static_assert(ABSL_INTERNAL_INLINE_NAMESPACE_STR[0] != 'h' ||
 #define ABSL_HAVE_LEAK_SANITIZER 1
 #endif
 
+/**
+ * @brief On Arm64, clang complains:
+Undefined symbols for architecture arm64:
+  "___lsan_is_turned_off", referenced from:
+      absl::lts_20240116::LeakCheckerIsActive() in leak_check.cc.o
+      absl::lts_20240116::LeakCheckerIsActive() in leak_check.cc.o
+ld: symbol(s) not found for architecture arm64
+ * 
+ */
+#if defined(__aarch64__) || defined(_M_ARM64)
+#undef ABSL_HAVE_LEAK_SANITIZER
+#endif
+
 // ABSL_HAVE_CLASS_TEMPLATE_ARGUMENT_DEDUCTION
 //
 // Class template argument deduction is a language feature added in C++17.

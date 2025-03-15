@@ -223,7 +223,20 @@ list(APPEND ABSL_RANDOM_HWAES_ARM64_FLAGS
 list(APPEND ABSL_RANDOM_HWAES_MSVC_X64_FLAGS
 )
 
-list(APPEND ABSL_RANDOM_HWAES_X64_FLAGS
-    "-maes"
-    "-msse4.1"
-)
+# list(APPEND ABSL_RANDOM_HWAES_X64_FLAGS
+#     "-maes"
+#     "-msse4.1"
+# )
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
+    # Remove x86-specific flags
+    message(STATUS "Building for ARM64, removing x86-specific flags.")
+    # Optionally, add ARM-specific flags here
+    list(APPEND ABSL_RANDOM_HWAES_X64_FLAGS
+        "-maes"
+    )
+else()
+    list(APPEND ABSL_RANDOM_HWAES_X64_FLAGS
+        "-maes"
+        "-msse4.1"
+    )
+endif()
